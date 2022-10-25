@@ -1,0 +1,31 @@
+plugins {
+    id 'java'
+    id 'com.konfigyr'
+    id 'org.springframework.boot' version '2.7.4'
+    id 'io.spring.dependency-management' version '1.0.11.RELEASE'
+}
+
+group 'com.acme'
+version '1.0.0'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter'
+
+    implementation 'org.zalando:problem-spring-web:0.26.2'
+    implementation 'org.zalando:logbook-spring-boot-starter:2.14.0'
+
+
+    implementation 'org.springframework.boot:spring-boot-starter-data-rest:2.2.6.RELEASE'
+    implementation 'org.springframework.boot:spring-boot-starter-websocket:1.5.22.RELEASE'
+
+    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+}
+
+konfigyr {
+    token = 'test-access-token'
+    host = 'http://localhost:9999'
+}

@@ -1,0 +1,56 @@
+{
+  "mappings": [
+    {
+      "request": {
+        "method": "POST",
+        "headers": {
+          "Authorization": {
+            "equalTo": "Bearer test-access-token"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "delayDistribution": {
+          "type": "uniform",
+          "lower": 60,
+          "upper": 200
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "urlPathPattern": "/upload/com.acme/(acme|core|spring)/.*",
+        "headers": {
+          "Authorization": {
+            "equalTo": "Bearer invalid-access-token"
+          }
+        }
+      },
+      "response": {
+        "status": 401,
+        "jsonBody": {
+          "message": "Invalid access token"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "urlPathPattern": "/upload/com.acme/(acme|core|spring)/.*",
+        "headers": {
+          "Authorization": {
+            "equalTo": "Bearer forbidden-access-token"
+          }
+        }
+      },
+      "response": {
+        "status": 403,
+        "jsonBody": {
+          "message": "Access denied"
+        }
+      }
+    }
+  ]
+}
