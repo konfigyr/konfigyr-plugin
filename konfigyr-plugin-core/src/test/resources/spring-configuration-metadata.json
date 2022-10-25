@@ -1,0 +1,32 @@
+{
+  "groups": [
+    {
+      "name": "konfigyr",
+      "type": "com.konfigyr.KonfigyrProperties",
+      "sourceType": "com.konfigyr.KonfigyrProperties"
+    }
+  ],
+  "properties": [
+    {
+      "name": "konfigyr.message",
+      "type": "java.lang.String",
+      "sourceType": "com.konfigyr.KonfigyrProperties"
+    },
+    {
+      "name": "konfigyr.enabled",
+      "type": "java.lang.Boolean",
+      "sourceType": "com.konfigyr.KonfigyrProperties"
+    },
+    {
+      "name": "konfigyr.profiles",
+      "type": "java.util.List<java.lang.String>",
+      "sourceType": "com.konfigyr.KonfigyrProperties"
+    },
+    {
+      "name": "konfigyr.ttl",
+      "type": "java.time.Duration",
+      "sourceType": "com.konfigyr.KonfigyrProperties"
+    }
+  ],
+  "hints": []
+}

@@ -1,0 +1,18 @@
+plugins {
+    id 'java-gradle-plugin'
+}
+
+dependencies {
+    implementation project(':konfigyr-plugin-core')
+
+    testImplementation project(':konfigyr-plugin-test')
+}
+
+gradlePlugin {
+    plugins {
+        konfigyr {
+            id = 'com.konfigyr'
+            implementationClass = 'com.konfigyr.KonfigyrPlugin'
+        }
+    }
+}
