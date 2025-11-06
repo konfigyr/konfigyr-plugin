@@ -6,7 +6,6 @@
     </appender>
 
     <logger name="com.konfigyr" level="DEBUG" />
-    <logger name="com.github.tomakehurst.wiremock" level="DEBUG" />
 
     <root level="INFO">
         <appender-ref ref="STDOUT" />
