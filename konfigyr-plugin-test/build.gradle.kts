@@ -5,5 +5,5 @@ dependencies {
     compileOnly(project(":konfigyr-plugin-core"))
 
     compileOnly("org.assertj:assertj-core:3.27.6")
-    compileOnly("org.junit.jupiter:junit-jupiter:6.0.0")
+    compileOnly("org.junit.jupiter:junit-jupiter:6.0.1")
 }
