@@ -1,0 +1,31 @@
+{
+  "id": "6274e1984052",
+  "name": "konfigyr-test-service",
+  "artifacts": [
+    {
+      "groupId": "com.konfigyr",
+      "artifactId": "konfigyr-artifactory",
+      "version": "1.0.0"
+    },
+    {
+      "groupId": "com.konfigyr",
+      "artifactId": "konfigyr-crypto-api",
+      "version": "1.0.0"
+    },
+    {
+      "groupId": "com.konfigyr",
+      "artifactId": "konfigyr-crypto-tink",
+      "version": "1.0.0"
+    },
+    {
+      "groupId": "com.konfigyr",
+      "artifactId": "konfigyr-crypto-jdbc",
+      "version": "1.0.0"
+    },
+    {
+      "groupId": "org.springframework.boot",
+      "artifactId": "spring-boot-autoconfigure",
+      "version": "3.5.7"
+    }
+  ]
+}

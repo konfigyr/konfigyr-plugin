@@ -1,1 +1,9 @@
-{}
+{
+  "properties": [
+    {
+      "name": "konfigyr.message",
+      "type": "java.lang.String",
+      "description": "A message property, can be used anywhere."
+    }
+  ]
+}

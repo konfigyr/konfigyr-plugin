@@ -15,18 +15,46 @@
     {
       "name": "konfigyr.enabled",
       "type": "java.lang.Boolean",
-      "sourceType": "com.konfigyr.KonfigyrProperties"
+      "sourceType": "com.konfigyr.KonfigyrProperties",
+      "deprecation": {
+        "reason": "No longer needed"
+      }
     },
     {
       "name": "konfigyr.profiles",
       "type": "java.util.List<java.lang.String>",
-      "sourceType": "com.konfigyr.KonfigyrProperties"
+      "sourceType": "com.konfigyr.KonfigyrProperties",
+      "defaultValue": "test"
     },
     {
       "name": "konfigyr.ttl",
       "type": "java.time.Duration",
       "sourceType": "com.konfigyr.KonfigyrProperties"
+    },
+    {
+      "name": "konfigyr.enumeration",
+      "type": "com.konfigyr.TestEnumeration",
+      "sourceType": "com.konfigyr.KonfigyrProperties",
+      "description": "Test enum provided hints."
     }
   ],
-  "hints": []
+  "hints": [
+    {
+      "name": "konfigyr.profiles",
+      "values": [
+        {
+          "value": "test"
+        },
+        {
+          "value": "production",
+          "description": "Please use with caution."
+        }
+      ],
+      "providers": [
+        {
+          "name": "any"
+        }
+      ]
+    }
+  ]
 }
