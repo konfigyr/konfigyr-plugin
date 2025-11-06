@@ -1,6 +1,5 @@
 plugins {
     id("java")
-    id("org.springframework.boot") version "3.5.7"
 }
 
 group = "com.konfigyr"
