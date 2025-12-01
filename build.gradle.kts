@@ -1,7 +1,7 @@
 plugins {
     id("idea")
     id("java-library")
-    id("io.freefair.lombok") version "9.0.0" apply false
+    id("io.freefair.lombok") version "9.1.0" apply false
 }
 
 subprojects {
