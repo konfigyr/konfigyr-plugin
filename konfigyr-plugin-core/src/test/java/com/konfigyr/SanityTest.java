@@ -36,8 +36,6 @@ class SanityTest {
                 .returns(artifact.artifactId(), Artifact::artifactId)
                 .returns(artifact.version(), Artifact::version);
 
-        metadata.properties().forEach(System.out::println);
-
         assertThat(metadata.properties())
                 .hasSize(10)
                 .isSortedAccordingTo(PropertyDescriptor::compareTo)
@@ -51,7 +49,9 @@ class SanityTest {
                                         "\"metadataUri\":{\"type\":\"string\"}," +
                                         "\"singlelogout\":{\"type\":\"object\",\"properties\":{}}," +
                                         "\"singlesignon\":{\"type\":\"object\",\"properties\":{}}," +
-                                        "\"verification\":{\"type\":\"object\",\"properties\":{\"credentials\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}}}}}}")
+                                        "\"verification\":{\"type\":\"object\",\"properties\":{" +
+                                        "\"credentials\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{}}" +
+                                        "}}}}}}")
                                 .description("Property that would trigger {@code NoClassDefFoundError} for missing {@code Saml2MessageBinding} type.")
                                 .hasNoDefaultValue()
                                 .isNotDeprecated(),
