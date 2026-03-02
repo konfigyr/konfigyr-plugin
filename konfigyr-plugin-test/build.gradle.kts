@@ -1,5 +1,5 @@
 dependencies {
-    api("org.mockito:mockito-junit-jupiter:5.21.0")
+    api("org.mockito:mockito-junit-jupiter:5.22.0")
     api("org.wiremock:wiremock:3.13.2")
 
     compileOnly(project(":konfigyr-plugin-core"))
