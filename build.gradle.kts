@@ -29,7 +29,7 @@ subprojects {
     dependencies {
         compileOnly("org.slf4j:slf4j-api:2.0.17")
 
-        testImplementation("ch.qos.logback:logback-classic:1.5.27")
+        testImplementation("ch.qos.logback:logback-classic:1.5.32")
         testImplementation("org.assertj:assertj-core:3.27.7")
         testImplementation("org.junit.jupiter:junit-jupiter:6.0.2")
         testImplementation("org.junit.jupiter:junit-jupiter-params:6.0.2")
