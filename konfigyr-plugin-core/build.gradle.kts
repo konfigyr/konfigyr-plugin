@@ -1,6 +1,6 @@
 dependencies {
     api("com.konfigyr:konfigyr-artifactory:1.0.0-RC2")
-    api("tools.jackson.core:jackson-databind:3.0.4")
+    api("tools.jackson.core:jackson-databind:3.1.1")
     api("org.springframework:spring-core:7.0.5")
     api("org.springframework.boot:spring-boot-configuration-metadata:4.0.3")
 
