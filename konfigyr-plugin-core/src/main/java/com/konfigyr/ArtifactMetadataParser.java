@@ -42,6 +42,12 @@ public class ArtifactMetadataParser {
     private final TypeNameResolver typeNameResolver;
     private final JsonSchemaGenerator jsonSchemaGenerator;
 
+    /**
+     * Creates a new {@link ArtifactMetadataParser} instance using the given {@link ClassLoader} to resolve
+     * type names and generate JSON schemas from the Spring Boot metadata.
+     *
+     * @param classLoader the class loader to use, never {@literal null}.
+     */
     public ArtifactMetadataParser(@NonNull ClassLoader classLoader) {
         final TypeLoader typeLoader = new TypeLoader(classLoader);
         final TypeResolver typeResolver = new TypeResolver();
@@ -50,10 +56,22 @@ public class ArtifactMetadataParser {
         this.jsonSchemaGenerator = JsonSchemaGenerator.createDefaultGenerator(typeLoader, typeResolver);
     }
 
+    /**
+     * Parses the given metadata files and returns a collection of {@link PropertyDescriptor}s.
+     *
+     * @param metadata the metadata files to parse, cannot be {@literal null}.
+     * @return the parsed property descriptors from the Spring Boot metadata files, never {@literal null}.
+     */
     public List<PropertyDescriptor> parse(Resource... metadata) {
         return parse(List.of(metadata));
     }
 
+    /**
+     * Parses the given metadata files and returns a collection of {@link PropertyDescriptor}s.
+     *
+     * @param metadata the metadata files to parse, cannot be {@literal null}.
+     * @return the parsed property descriptors from the Spring Boot metadata files, never {@literal null}.
+     */
     public List<PropertyDescriptor> parse(@NonNull Iterable<? extends Resource> metadata) {
         final ConfigurationMetadataRepositoryJsonBuilder builder = ConfigurationMetadataRepositoryJsonBuilder.create();
 

@@ -1,6 +1,5 @@
 package com.konfigyr;
 
-import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NullMarked;
 import org.springframework.util.ClassUtils;
 import org.springframework.util.StringUtils;
@@ -12,13 +11,24 @@ import org.springframework.util.StringUtils;
  * @since 1.0.0
  */
 @NullMarked
-@RequiredArgsConstructor
 public final class TypeLoader {
 
     private final ClassLoader classLoader;
 
+    /**
+     * Creates a new {@link TypeLoader} instance using the current {@link ClassLoader} instance.
+     */
     public TypeLoader() {
         this(TypeLoader.class.getClassLoader());
+    }
+
+    /**
+     * Creates a new {@link TypeLoader} instance using the given {@link ClassLoader} instance.
+     *
+     * @param classLoader the class loader to use, cannot be {@literal null}.
+     */
+    public TypeLoader(ClassLoader classLoader) {
+        this.classLoader = classLoader;
     }
 
     /**

@@ -19,3 +19,7 @@ dependencies {
 
     annotationProcessor(libs.spring.configuration.processor)
 }
+
+tasks.withType<Javadoc> {
+    enabled = false
+}

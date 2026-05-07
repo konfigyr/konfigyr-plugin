@@ -3,7 +3,8 @@ package com.konfigyr;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.google.common.net.HttpHeaders;
 import com.konfigyr.artifactory.*;
-import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tools.jackson.core.JacksonException;
@@ -32,6 +33,7 @@ import java.util.UUID;
  * @author Vladimir Spasic
  * @since 1.0.0
  */
+@NullMarked
 public final class DefaultArtifactoryClient implements ArtifactoryClient {
 
     private final Logger logger;
@@ -40,6 +42,11 @@ public final class DefaultArtifactoryClient implements ArtifactoryClient {
     private final JsonMapper mapper;
     private final OAuthClientCredentialsProvider authenticator;
 
+    /**
+     * Creates a new {@link DefaultArtifactoryClient} instance with the given {@link ArtifactoryConfiguration}.
+     *
+     * @param configuration the artifactory configuration, cannot be {@literal null}.
+     */
     public DefaultArtifactoryClient(ArtifactoryConfiguration configuration) {
         this(configuration, JsonMapper.builder()
                 .addModule(new ArtifactoryJacksonModule())
@@ -51,11 +58,26 @@ public final class DefaultArtifactoryClient implements ArtifactoryClient {
                 .build());
     }
 
+    /**
+     * Creates a new {@link DefaultArtifactoryClient} instance with the given {@link ArtifactoryConfiguration} and
+     * a custom {@link JsonMapper}.
+     *
+     * @param configuration the artifactory configuration, cannot be {@literal null}.
+     * @param mapper the JSON mapper to use, cannot be {@literal null}.
+     */
     public DefaultArtifactoryClient(ArtifactoryConfiguration configuration, JsonMapper mapper) {
         this(LoggerFactory.getLogger(DefaultArtifactoryClient.class), configuration, mapper);
     }
 
-    public DefaultArtifactoryClient(@NonNull Logger logger, @NonNull ArtifactoryConfiguration configuration, @NonNull JsonMapper mapper) {
+    /**
+     * Creates a new {@link DefaultArtifactoryClient} instance with the given {@link ArtifactoryConfiguration},
+     * logger and a custom {@link JsonMapper}.
+     *
+     * @param logger the logger to use, cannot be {@literal null}.
+     * @param configuration the artifactory configuration, cannot be {@literal null}.
+     * @param mapper the JSON mapper to use, cannot be {@literal null}.
+     */
+    public DefaultArtifactoryClient(Logger logger, ArtifactoryConfiguration configuration, JsonMapper mapper) {
         this.logger = logger;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(configuration.connectTimeout())
@@ -69,7 +91,6 @@ public final class DefaultArtifactoryClient implements ArtifactoryClient {
         this.authenticator = new OAuthClientCredentialsProvider(httpClient, configuration);
     }
 
-    @NonNull
     @Override
     public Manifest getManifest() {
         if (logger.isDebugEnabled()) {
@@ -112,7 +133,7 @@ public final class DefaultArtifactoryClient implements ArtifactoryClient {
     }
 
     @Override
-    public boolean isReleased(@NonNull Artifact artifact) {
+    public boolean isReleased(Artifact artifact) {
         if (logger.isDebugEnabled()) {
             logger.debug("Checking if Artifact with coordinates '{}' is already released by Artifactory",
                     generateArtifactCoordinates(artifact));
@@ -132,9 +153,8 @@ public final class DefaultArtifactoryClient implements ArtifactoryClient {
         return true;
     }
 
-    @NonNull
     @Override
-    public Release upload(@NonNull ArtifactMetadata metadata) {
+    public Release upload(ArtifactMetadata metadata) {
         if (logger.isDebugEnabled()) {
             logger.debug("Attempting to upload artifact metadata for service {} in namespace {}: {}",
                     configuration.service(), configuration.namespace(), metadata);
@@ -157,9 +177,8 @@ public final class DefaultArtifactoryClient implements ArtifactoryClient {
         return release;
     }
 
-    @NonNull
     @Override
-    public Release getRelease(@NonNull Artifact artifact) {
+    public Release getRelease(Artifact artifact) {
         if (logger.isDebugEnabled()) {
             logger.debug("Attempting to retrieve release state for artifact {} used by service {} in namespace {}",
                     artifact.name(), configuration.service(), configuration.namespace());
@@ -170,7 +189,7 @@ public final class DefaultArtifactoryClient implements ArtifactoryClient {
         return execute(request, Release.class);
     }
 
-    private HttpRequest createHttpRequest(String method, String path, HttpRequest.BodyPublisher publisher) {
+    private HttpRequest createHttpRequest(String method, String path, HttpRequest.@Nullable BodyPublisher publisher) {
         final URI uri = configuration.host().resolve(path);
         final String accessToken = authenticator.getAccessToken();
 
@@ -188,7 +207,6 @@ public final class DefaultArtifactoryClient implements ArtifactoryClient {
                 .build();
     }
 
-    @NonNull
     @SuppressWarnings("unchecked")
     private <T> T execute(HttpRequest request, Class<T> type) {
         if (logger.isDebugEnabled()) {
@@ -243,13 +261,11 @@ public final class DefaultArtifactoryClient implements ArtifactoryClient {
         }
     }
 
-    @NonNull
-    private static String generateArtifactPath(@NonNull Artifact artifact) {
+    private static String generateArtifactPath(Artifact artifact) {
         return "/artifacts/" + artifact.groupId() + "/" + artifact.artifactId() + "/" + artifact.version();
     }
 
-    @NonNull
-    private static String generateArtifactCoordinates(@NonNull Artifact artifact) {
+    private static String generateArtifactCoordinates(Artifact artifact) {
         return artifact.groupId() + ":" + artifact.artifactId() + ":" + artifact.version();
     }
 }

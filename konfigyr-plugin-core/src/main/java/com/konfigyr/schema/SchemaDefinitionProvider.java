@@ -10,6 +10,8 @@ import org.jspecify.annotations.Nullable;
  *
  * @author Vladimir Spasic
  * @since 1.0.0
+ * @param <T> the concrete type of the JSON Schema definition.
+ * @param <B> the builder type of the JSON Schema definition.
  */
 @NullMarked
 public interface SchemaDefinitionProvider<T extends JsonSchema, B extends JsonSchema.Builder<T, B>> {

@@ -18,6 +18,9 @@ import java.util.Collections;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 
+/**
+ * Factory class for creating stub mappings for testing purposes.
+ */
 @RequiredArgsConstructor
 public final class StubFactories {
 
