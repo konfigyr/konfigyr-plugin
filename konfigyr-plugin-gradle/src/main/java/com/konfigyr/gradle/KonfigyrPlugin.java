@@ -1,21 +1,17 @@
 package com.konfigyr.gradle;
 
+import org.gradle.api.DefaultTask;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.artifacts.ResolvedArtifact;
-import org.gradle.api.artifacts.component.ComponentIdentifier;
-import org.gradle.api.artifacts.component.ModuleComponentIdentifier;
+import org.gradle.api.artifacts.ArtifactCollection;
+import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
-import org.gradle.api.plugins.JavaPluginExtension;
-import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.provider.Provider;
 import org.jspecify.annotations.NonNull;
-import org.springframework.util.ClassUtils;
+import org.jspecify.annotations.NullMarked;
 
 import java.time.Duration;
-import java.util.Objects;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Gradle plugin for Konfigyr Artifacts.
@@ -35,61 +31,116 @@ public class KonfigyrPlugin implements Plugin<@NonNull Project> {
     public void apply(@NonNull Project project) {
         final KonfigyrExtension extension = project.getExtensions().create(PLUGIN_NAME, KonfigyrExtension.class);
 
-        project.getGradle().getSharedServices().registerIfAbsent(PLUGIN_NAME, ArtifactoryService.class, spec -> {
-            spec.getParameters().getConfiguration().set(project.provider(extension::toConfiguration));
-            spec.getParameters().getClasspath().set(project.provider(() -> resolveClasspath(project).getFiles()));
-        });
+        // register the Gradle build service to be shared with tasks and actions
+        final Provider<ArtifactoryService> service = registerArtifactoryService(project, extension);
 
-        project.getTasks().register(PLUGIN_NAME, KonfigyrUploadTask.class, task -> {
-            task.getConfiguration().set(project.provider(extension::toConfiguration));
-            task.getArtifacts().set(project.provider(() -> resolveArtifacts(project)));
-            task.getClasspath().set(project.provider(() -> resolveClasspath(project)));
-            task.getReleaseTimeout().set(extension.getReleasePollTimeout().map(Duration::ofMillis));
-            task.getReleasePollingInterval().set(extension.getReleasePollInterval().map(Duration::ofMillis));
-            task.getOutput().set(project.getLayout().getBuildDirectory().file("konfigyr/manifest.json"));
+        // register the transform action that would generate the artifact metadata for each dependency
+        registerArtifactMetadataTransform(project, service);
+
+        // register tasks...
+        final Provider<GenerateArtifactMetadataTask> generateMetadataTask =
+                registerGenerateMetadataTask(project, service);
+        final Provider<PublishArtifactMetadataTask> publishMetadataTask =
+                registerPublishMetadataTask(project, extension, service, generateMetadataTask);
+
+        // register konfigyr task that would be used as the main entrypoint...
+        project.getTasks().register(PLUGIN_NAME, DefaultTask.class, task -> {
+            task.setGroup(PLUGIN_NAME);
+            task.setDescription("Task that would generate and publish the Konfigyr artifact metadata for your project");
+
+            task.dependsOn(publishMetadataTask);
+        });
+    }
+
+    @NullMarked
+    private static Provider<ArtifactoryService> registerArtifactoryService(Project project, KonfigyrExtension extension) {
+        return project.getGradle().getSharedServices().registerIfAbsent(PLUGIN_NAME, ArtifactoryService.class, spec -> {
+            spec.parameters(parameters -> {
+                parameters.getConfiguration().set(project.provider(extension::toConfiguration));
+                parameters.getTimeout().set(extension.getReleasePollTimeout().map(Duration::ofMillis));
+                parameters.getInterval().set(extension.getReleasePollInterval().map(Duration::ofMillis));
+            });
+        });
+    }
+
+    @NullMarked
+    private static void registerArtifactMetadataTransform(Project project, Provider<ArtifactoryService> service) {
+        project.getDependencies().registerTransform(ArtifactMetadataTransform.class, spec -> {
+            spec.getFrom().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE);
+            spec.getTo().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactMetadataTransform.ARTIFACT_TYPE);
+            spec.parameters(parameters -> parameters.getService().set(service));
+        });
+    }
+
+    @NullMarked
+    private static Provider<GenerateArtifactMetadataTask> registerGenerateMetadataTask(Project project, Provider<ArtifactoryService> service) {
+        return project.getTasks().register(GenerateArtifactMetadataTask.NAME, GenerateArtifactMetadataTask.class, task -> {
+            task.getClasspath().from(project.provider(() -> resolveProjectCompileClasspath(project)));
+            task.getArtifacts().set(project.provider(() -> resolveTransformedArtifactCollection(project)));
+            task.getRuntimeClasspath().from(project.provider(() -> resolveProjectRuntimeClasspath(project)));
+            task.getManifest().set(project.getLayout().getBuildDirectory().file("konfigyr/artifact-manifest.txt"));
+            task.getOutput().set(project.getLayout().getBuildDirectory().dir("konfigyr/manifests"));
+
+            task.getService().set(service);
+            task.usesService(service);
 
             task.setGroup(PLUGIN_NAME);
-            task.setDescription("Task that would upload the Spring Boot configuration metadata to your Konfigyr service");
+            task.setDescription("Generates the Konfigyr artifact metadata for the project and it's dependencies");
 
-            task.mustRunAfter("compileJava");
+            task.dependsOn(JavaPlugin.COMPILE_JAVA_TASK_NAME, JavaPlugin.JAR_TASK_NAME);
+            task.mustRunAfter(JavaPlugin.JAR_TASK_NAME);
         });
     }
 
-    private static FileCollection resolveClasspath(Project project) {
-        final var compile = project.getExtensions().getByType(JavaPluginExtension.class)
-                .getSourceSets()
-                .stream()
-                .map(SourceSet::getCompileClasspath);
+    @NullMarked
+    private static Provider<PublishArtifactMetadataTask> registerPublishMetadataTask(
+            Project project,
+            KonfigyrExtension extension,
+            Provider<ArtifactoryService> service,
+            Provider<GenerateArtifactMetadataTask> generateMetadataTask
+    ) {
+        return project.getTasks().register(PublishArtifactMetadataTask.NAME, PublishArtifactMetadataTask.class, task -> {
+            task.getArtifactManifest().set(generateMetadataTask.flatMap(GenerateArtifactMetadataTask::getManifest));
+            task.getMetadataDirectory().set(generateMetadataTask.flatMap(GenerateArtifactMetadataTask::getOutput));
+            task.getReleaseTimeout().set(extension.getReleasePollTimeout().map(Duration::ofMillis));
+            task.getReleasePollingInterval().set(extension.getReleasePollInterval().map(Duration::ofMillis));
 
-        final var runtime = project.getExtensions().getByType(JavaPluginExtension.class)
-                .getSourceSets()
-                .stream()
-                .map(SourceSet::getRuntimeClasspath);
+            task.getService().set(service);
+            task.usesService(service);
 
-        return Stream.concat(compile, runtime)
-                .reduce(FileCollection::plus)
-                .orElseGet(project::files);
+            task.setGroup(PLUGIN_NAME);
+            task.setDescription("Publishes the generated Konfigyr artifact metadata and the project manifest");
+
+            task.dependsOn(GenerateArtifactMetadataTask.NAME);
+            task.mustRunAfter(GenerateArtifactMetadataTask.NAME);
+
+            // this task is a publishing one, it should never be cached...
+            task.getOutputs().upToDateWhen(ignore -> false);
+        });
     }
 
-    private static Iterable<GradleArtifact> resolveArtifacts(Project project) {
+    @NullMarked
+    private static ArtifactCollection resolveTransformedArtifactCollection(Project project) {
+        return project.getConfigurations()
+                .getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME)
+                .getIncoming()
+                .artifactView(view -> view.attributes(attributes -> attributes.attribute(
+                        ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE,
+                        ArtifactMetadataTransform.ARTIFACT_TYPE
+                )))
+                .getArtifacts();
+    }
+
+    private static FileCollection resolveProjectRuntimeClasspath(Project project) {
         return project.getConfigurations().getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME)
-                .getResolvedConfiguration()
-                .getResolvedArtifacts()
-                .stream()
-                .map(artifact -> createGradleArtifact(project, artifact))
-                .filter(Objects::nonNull)
-                .distinct()
-                .sorted()
-                .collect(Collectors.toList());
+                .getIncoming()
+                .getFiles();
     }
 
-    private static GradleArtifact createGradleArtifact(Project project, ResolvedArtifact artifact) {
-        final ComponentIdentifier identifier = artifact.getId().getComponentIdentifier();
-
-        if (!ClassUtils.isAssignableValue(ModuleComponentIdentifier.class, identifier)) {
-            return null;
-        }
-
-        return GradleArtifact.create((ModuleComponentIdentifier) identifier, project.zipTree(artifact.getFile()));
+    private static FileCollection resolveProjectCompileClasspath(Project project) {
+        return project.getConfigurations().getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME)
+                .getIncoming()
+                .getFiles();
     }
+
 }

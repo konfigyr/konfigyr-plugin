@@ -1,12 +1,9 @@
 package com.konfigyr;
 
-import com.konfigyr.artifactory.Artifact;
-import com.konfigyr.artifactory.ArtifactMetadata;
+import com.fasterxml.classmate.TypeResolver;
 import com.konfigyr.artifactory.Deprecation;
 import com.konfigyr.artifactory.PropertyDescriptor;
 import com.konfigyr.schema.JsonSchemaGenerator;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.springframework.boot.configurationmetadata.ConfigurationMetadataProperty;
@@ -27,7 +24,7 @@ import java.util.stream.Collectors;
 
 /**
  * Parses configuration metadata files produced by Spring Boot applications or libraries and constructs
- * an {@link ArtifactMetadata} instance suitable for upload to the Konfigyr Artifactory.
+ * a collection of {@link PropertyDescriptor}s suitable for upload to the Konfigyr Artifactory.
  * <p>
  * The {@code ArtifactMetadataParser} is responsible for reading the standard Spring Boot metadata file
  * located at {@code META-INF/spring-configuration-metadata.json}, extracting property definitions,
@@ -36,26 +33,46 @@ import java.util.stream.Collectors;
  * This parser uses the {@link ConfigurationMetadataRepositoryJsonBuilder} to read the Spring Boot metadata
  * JSON files that are later aggregated and converted into a collection of {@link PropertyDescriptor descriptors}.
  *
- * @see ArtifactMetadata
  * @see PropertyDescriptor
  * @author Vladimir Spasic
  * @since 1.0.0
  */
-@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public class ArtifactMetadataParser {
 
     private final TypeNameResolver typeNameResolver;
-    private final JsonSchemaGenerator jsonSchemaGenerator = JsonSchemaGenerator.createDefaultGenerator();
+    private final JsonSchemaGenerator jsonSchemaGenerator;
 
+    /**
+     * Creates a new {@link ArtifactMetadataParser} instance using the given {@link ClassLoader} to resolve
+     * type names and generate JSON schemas from the Spring Boot metadata.
+     *
+     * @param classLoader the class loader to use, never {@literal null}.
+     */
     public ArtifactMetadataParser(@NonNull ClassLoader classLoader) {
-        this(new TypeNameResolver(classLoader));
+        final TypeLoader typeLoader = new TypeLoader(classLoader);
+        final TypeResolver typeResolver = new TypeResolver();
+
+        this.typeNameResolver = new TypeNameResolver(typeLoader, typeResolver);
+        this.jsonSchemaGenerator = JsonSchemaGenerator.createDefaultGenerator(typeLoader, typeResolver);
     }
 
-    public ArtifactMetadata parse(@NonNull Artifact artifact, Resource... metadata) {
-        return parse(artifact, List.of(metadata));
+    /**
+     * Parses the given metadata files and returns a collection of {@link PropertyDescriptor}s.
+     *
+     * @param metadata the metadata files to parse, cannot be {@literal null}.
+     * @return the parsed property descriptors from the Spring Boot metadata files, never {@literal null}.
+     */
+    public List<PropertyDescriptor> parse(Resource... metadata) {
+        return parse(List.of(metadata));
     }
 
-    public ArtifactMetadata parse(@NonNull Artifact artifact, @NonNull Iterable<Resource> metadata) {
+    /**
+     * Parses the given metadata files and returns a collection of {@link PropertyDescriptor}s.
+     *
+     * @param metadata the metadata files to parse, cannot be {@literal null}.
+     * @return the parsed property descriptors from the Spring Boot metadata files, never {@literal null}.
+     */
+    public List<PropertyDescriptor> parse(@NonNull Iterable<? extends Resource> metadata) {
         final ConfigurationMetadataRepositoryJsonBuilder builder = ConfigurationMetadataRepositoryJsonBuilder.create();
 
         metadata.forEach(resource -> {
@@ -70,13 +87,11 @@ public class ArtifactMetadataParser {
 
         final ConfigurationMetadataRepository repository = builder.build();
 
-        final List<PropertyDescriptor> properties = repository.getAllProperties().values()
+        return repository.getAllProperties().values()
                 .stream()
                 .map(this::resolve)
                 .sorted(PropertyDescriptor::compareTo)
                 .toList();
-
-        return artifact.toMetadata(properties);
     }
 
     private PropertyDescriptor resolve(ConfigurationMetadataProperty metadata) {
@@ -96,7 +111,7 @@ public class ArtifactMetadataParser {
 
         return PropertyDescriptor.builder()
                 .name(metadata.getId())
-                .schema(jsonSchemaGenerator.generateSchemaAsString(type.getType(), metadata))
+                .schema(jsonSchemaGenerator.generateSchema(type.getType(), metadata))
                 .typeName(typeName)
                 .description(metadata.getDescription())
                 .defaultValue(resolveDefaultValue(metadata))

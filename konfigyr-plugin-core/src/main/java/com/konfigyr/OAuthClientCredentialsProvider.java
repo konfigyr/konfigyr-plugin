@@ -1,5 +1,6 @@
 package com.konfigyr;
 
+import com.google.common.net.HttpHeaders;
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,7 +33,7 @@ import java.util.function.Function;
  */
 final class OAuthClientCredentialsProvider {
 
-    private final static String FORM_PARAMETERS = "grant_type=client_credentials&client_id=%s&client_secret=%s";
+    private final static String FORM_PARAMETERS = "grant_type=client_credentials&client_id=%s&client_secret=%s&scope=namespaces:publish-manifests";
 
     private final Logger logger;
     private final JsonMapper mapper;
@@ -85,14 +86,16 @@ final class OAuthClientCredentialsProvider {
                 URLEncoder.encode(configuration.clientSecret(), StandardCharsets.UTF_8)
         );
 
+
+
         final HttpRequest request = HttpRequest.newBuilder()
                 .uri(configuration.tokenUri())
-                .header("Accept", "application/json")
-                .header("Accept-Charset", StandardCharsets.UTF_8.name())
-                .header("Accept-Language", Locale.ENGLISH.toLanguageTag())
-                .header("Content-Type", "application/x-www-form-urlencoded")
-                .header("User-Agent", configuration.userAgent())
-                .header("X-Request-ID", UUID.randomUUID().toString())
+                .header(HttpHeaders.ACCEPT, "application/json")
+                .header(HttpHeaders.ACCEPT_CHARSET, StandardCharsets.UTF_8.name())
+                .header(HttpHeaders.ACCEPT_LANGUAGE, Locale.ENGLISH.toLanguageTag())
+                .header(HttpHeaders.CONTENT_TYPE, "application/x-www-form-urlencoded")
+                .header(HttpHeaders.USER_AGENT, configuration.userAgent())
+                .header(HttpHeaders.X_REQUEST_ID, UUID.randomUUID().toString())
                 .POST(HttpRequest.BodyPublishers.ofString(form))
                 .build();
 
@@ -116,7 +119,7 @@ final class OAuthClientCredentialsProvider {
         try {
             final JsonNode json = mapper.readTree(response.body());
 
-            accessToken = getNodeValue(json, "access_token", JsonNode::asText).orElseThrow(
+            accessToken = getNodeValue(json, "access_token", JsonNode::asString).orElseThrow(
                     () -> new IllegalStateException("Failed to extract OAuth2 access token from server response")
             );
 

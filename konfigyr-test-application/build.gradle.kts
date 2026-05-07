@@ -9,8 +9,17 @@ repositories {
 }
 
 dependencies {
-    implementation("jakarta.validation:jakarta.validation-api:3.1.1")
-    implementation("org.springframework.boot:spring-boot-starter:3.5.7")
+    implementation(platform("org.springframework.boot:spring-boot-dependencies:${libs.versions.spring.boot.get()}"))
 
-    annotationProcessor("org.springframework.boot:spring-boot-configuration-processor:3.5.7")
+    implementation("org.springframework.boot:spring-boot-starter-validation")
+    implementation("org.springframework.boot:spring-boot-starter-security-oauth2-client")
+
+    compileOnly("org.springframework.boot:spring-boot-starter-cache")
+    compileOnly("org.springframework.boot:spring-boot-starter-data-jdbc")
+
+    annotationProcessor(libs.spring.configuration.processor)
+}
+
+tasks.withType<Javadoc> {
+    enabled = false
 }

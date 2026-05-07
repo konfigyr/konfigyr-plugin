@@ -1,7 +1,8 @@
 plugins {
     id("idea")
     id("java-library")
-    id("io.freefair.lombok") version "9.2.0" apply false
+
+    alias(libs.plugins.lombok) apply false
 }
 
 subprojects {
@@ -10,30 +11,30 @@ subprojects {
     apply(plugin = "io.freefair.lombok")
 
     repositories {
-        mavenCentral()
         mavenLocal()
+        mavenCentral()
     }
 
     group = "com.konfigyr"
-    version = "1.0-SNAPSHOT"
+    version = "1.0.0"
 
     java {
         withJavadocJar()
         withSourcesJar()
 
         toolchain {
-            languageVersion = JavaLanguageVersion.of(17)
+            languageVersion = JavaLanguageVersion.of(21)
         }
     }
 
     dependencies {
-        compileOnly("org.slf4j:slf4j-api:2.0.17")
+        compileOnly(rootProject.libs.slf4j)
 
-        testImplementation("ch.qos.logback:logback-classic:1.5.32")
-        testImplementation("org.assertj:assertj-core:3.27.7")
-        testImplementation("org.junit.jupiter:junit-jupiter:6.0.2")
-        testImplementation("org.junit.jupiter:junit-jupiter-params:6.0.2")
-        testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.0.2")
+        testImplementation(rootProject.libs.logback)
+        testImplementation(rootProject.libs.assertj)
+        testImplementation(rootProject.libs.junit)
+        testImplementation(rootProject.libs.junit.params)
+        testRuntimeOnly(rootProject.libs.junit.launcher)
     }
 
     tasks.test {

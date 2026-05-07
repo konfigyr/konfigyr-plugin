@@ -18,6 +18,9 @@ import java.net.http.HttpClient;
  */
 public class AbstractWiremockTest {
 
+    /**
+     * The Wiremock extension used to create a local Artifactory instance for testing.
+     */
     @RegisterExtension
     protected static WireMockExtension wiremock = WireMockExtension.newInstance()
             .resetOnEachTest(true)
@@ -29,6 +32,9 @@ public class AbstractWiremockTest {
             )
             .build();
 
+    /**
+     * Wiremock stub factories used to create Konfigyr Artifactory stubs.
+     */
     protected final StubFactories stubFactories = new StubFactories(wiremock);
 
     /**
@@ -46,6 +52,7 @@ public class AbstractWiremockTest {
     /**
      * Creates the {@link HttpClient.Builder} using the specified {@link ArtifactoryConfiguration}.
      *
+     * @param configuration the Artifactory configuration, cannot be {@literal null}.
      * @return the test HTTP client builder, never {@literal null}.
      */
     protected HttpClient.Builder createHttpClient(ArtifactoryConfiguration configuration) {

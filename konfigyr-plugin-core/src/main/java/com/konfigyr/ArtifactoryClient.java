@@ -6,6 +6,8 @@ import com.konfigyr.artifactory.Manifest;
 import com.konfigyr.artifactory.Release;
 import org.jspecify.annotations.NonNull;
 
+import java.util.Collection;
+
 /**
  * Client interface for communicating with the Konfigyr {@code Artifactory} REST API.
  * <p>
@@ -62,13 +64,72 @@ public interface ArtifactoryClient {
      * preventing redundant metadata submissions.
      * <p>
      * Implementations should perform an HTTP {@code GET} request to the following endpoint:
-     * {@code /namespaces/{namespace}/{service}/manifest}.
+     * {@code /namespaces/{namespace}/services/{service}/manifest}.
      *
      * @return the current manifest, never {@literal null}.
      * @throws HttpResponseException if communication with the API fails or authentication is invalid.
      */
     @NonNull
     Manifest getManifest();
+
+    /**
+     * Publishes a new service release to Konfigyr {@code Artifactory} by submitting the set of artifacts
+     * that contribute configuration metadata to the application.
+     * <p>
+     * The provided collection represents all artifacts discovered on the application's classpath that
+     * expose Spring Boot configuration metadata. These artifacts are typically detected by the Konfigyr build
+     * plugins during the build process by scanning dependency JARs for {@code spring-configuration-metadata.json}
+     * descriptors or equivalent metadata sources.
+     * <p>
+     * When this method is invoked, the plugin sends the artifact coordinates to the Konfigyr platform where
+     * the following operations occur:
+     *
+     * <ul>
+     *     <li>
+     *         The artifact coordinates ({@code groupId}, {@code artifactId}, {@code version})
+     *         are validated and resolved against the Konfigyr Artifactory.
+     *     </li>
+     *     <li>
+     *         The dependency set is used to create or update the service {@link Manifest}.
+     *     </li>
+     *     <li>
+     *         The manifest establishes the relationship between the service and the artifacts
+     *         that define its configuration properties.
+     *     </li>
+     *     <li>
+     *         The {@code Artifactory} aggregates configuration metadata contributed by the
+     *         referenced artifacts and prepares the effective property model used by the service.
+     *     </li>
+     * </ul>
+     * <p>
+     * This operation effectively represents a <em>service release</em> from the perspective
+     * of the Konfigyr platform. Each publish operation updates the service dependency manifest and
+     * allows Konfigyr to recompute the configuration property definitions available to the service.
+     * <p>
+     * Implementations should perform an HTTP {@code GET} request to the following endpoint:
+     * {@code /namespaces/{namespace}/services/{service}/manifest}.
+     *
+     * @param artifacts the collection of artifacts discovered in the service classpath that
+     *                  provide Spring Boot configuration metadata. Each artifact must contain
+     *                  valid Maven coordinates. The collection must not be {@literal null},
+     *                  but may be empty if no configuration metadata providers are detected.
+     * @return the resulting {@link Manifest} associated with the published service release
+     * @throws HttpResponseException if communication with the API fails or authentication is invalid.
+     */
+    Manifest publish(Collection<? extends Artifact> artifacts);
+
+    /**
+     * Checks if the property metadata for a specific artifact version is already released.
+     * <p>
+     * Implementations should perform an HTTP {@code HEAD} request to the following endpoint:
+     * {@code /artifacts/{groupId}/{artifactId}/{version}}.
+     * <p>
+     * If the HTTP response fails with a {@code 404} status code, the artifact version is not released.
+     *
+     * @param artifact the artifact for which the release should be checked, never {@literal null}.
+     * @return {@literal true} if the artifact version is released, {@literal false} otherwise.
+     */
+    boolean isReleased(@NonNull Artifact artifact);
 
     /**
      * Uploads configuration property metadata for a specific artifact version to the Konfigyr {@code Artifactory}.

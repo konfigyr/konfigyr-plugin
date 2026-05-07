@@ -20,6 +20,7 @@ import java.time.Duration;
  * @param clientSecret   OAuth2 client secret, never {@literal null}.
  * @param tokenUri       OAuth2 token endpoint URI, never {@literal null}.
  * @param namespace      Optional namespace or service identifier for scoping requests, may be {@literal null}.
+ * @param service        The service identifier for scoping requests, never {@literal null}.
  * @param connectTimeout Connection timeout for HTTP requests, defaults to 10 seconds.
  * @param readTimeout    Read timeout for HTTP responses, defaults to 30 seconds.
  * @param userAgent      The User-Agent HTTP header value, defaults to {@code konfigyr-plugin}.
@@ -86,59 +87,134 @@ public record ArtifactoryConfiguration(
         private Duration readTimeout = Duration.ofSeconds(30);
         private String userAgent = "konfigyr-plugin";
 
+        private Builder() {
+            // Private constructor to enforce the builder pattern
+        }
+
+        /**
+         * Sets the base URL of the Konfigyr Artifactory API.
+         *
+         * @param host the host URL as a string, never {@literal null}.
+         * @return this builder instance for method chaining.
+         */
         public Builder host(String host) {
             return host(URI.create(host));
         }
 
+        /**
+         * Sets the base URL of the Konfigyr Artifactory API.
+         *
+         * @param host the host URL, never {@literal null}.
+         * @return this builder instance for method chaining.
+         */
         public Builder host(URI host) {
             this.host = host;
             return this;
         }
 
+        /**
+         * Sets the OAuth2 client identifier for authentication.
+         *
+         * @param clientId the OAuth2 client ID, never {@literal null}.
+         * @return this builder instance for method chaining.
+         */
         public Builder clientId(String clientId) {
             this.clientId = clientId;
             return this;
         }
 
+        /**
+         * Sets the OAuth2 client secret for authentication.
+         *
+         * @param clientSecret the OAuth2 client secret, never {@literal null}.
+         * @return this builder instance for method chaining.
+         */
         public Builder clientSecret(String clientSecret) {
             this.clientSecret = clientSecret;
             return this;
         }
 
+        /**
+         * Sets the OAuth2 token endpoint URI.
+         *
+         * @param tokenUri the token endpoint URI as a string, never {@literal null}.
+         * @return this builder instance for method chaining.
+         */
         public Builder tokenUri(String tokenUri) {
             return tokenUri(URI.create(tokenUri));
         }
 
+        /**
+         * Sets the OAuth2 token endpoint URI.
+         *
+         * @param tokenUri the token endpoint URI, never {@literal null}.
+         * @return this builder instance for method chaining.
+         */
         public Builder tokenUri(URI tokenUri) {
             this.tokenUri = tokenUri;
             return this;
         }
 
+        /**
+         * Sets the namespace for scoping requests.
+         *
+         * @param namespace the namespace identifier, never {@literal null}.
+         * @return this builder instance for method chaining.
+         */
         public Builder namespace(String namespace) {
             this.namespace = namespace;
             return this;
         }
 
+        /**
+         * Sets the service identifier for scoping requests.
+         *
+         * @param service the service identifier, never {@literal null}.
+         * @return this builder instance for method chaining.
+         */
         public Builder service(String service) {
             this.service = service;
             return this;
         }
 
+        /**
+         * Sets the connection timeout for HTTP requests.
+         *
+         * @param connectTimeout the connection timeout duration, may be {@literal null}.
+         * @return this builder instance for method chaining.
+         */
         public Builder connectTimeout(Duration connectTimeout) {
             this.connectTimeout = connectTimeout;
             return this;
         }
 
+        /**
+         * Sets the read timeout for HTTP responses.
+         *
+         * @param readTimeout the read timeout duration, may be {@literal null}.
+         * @return this builder instance for method chaining.
+         */
         public Builder readTimeout(Duration readTimeout) {
             this.readTimeout = readTimeout;
             return this;
         }
 
+        /**
+         * Sets the User-Agent HTTP header value.
+         *
+         * @param userAgent the user agent string, may be {@literal null}.
+         * @return this builder instance for method chaining.
+         */
         public Builder userAgent(String userAgent) {
             this.userAgent = userAgent;
             return this;
         }
 
+        /**
+         * Constructs a new {@link ArtifactoryConfiguration} instance with the configured values.
+         *
+         * @return a new configuration instance, never {@literal null}.
+         */
         public ArtifactoryConfiguration build() {
             return new ArtifactoryConfiguration(host, clientId, clientSecret, tokenUri,
                     namespace, service, userAgent, connectTimeout, readTimeout);

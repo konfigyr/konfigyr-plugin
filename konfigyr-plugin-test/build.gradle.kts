@@ -1,9 +1,8 @@
 dependencies {
-    api("org.mockito:mockito-junit-jupiter:5.22.0")
-    api("org.wiremock:wiremock:3.13.2")
+    api(libs.junit.mockito)
+    api(libs.wiremock)
 
     compileOnly(project(":konfigyr-plugin-core"))
-
-    compileOnly("org.assertj:assertj-core:3.27.7")
-    compileOnly("org.junit.jupiter:junit-jupiter:6.0.2")
+    compileOnly(libs.assertj)
+    compileOnly(libs.junit)
 }

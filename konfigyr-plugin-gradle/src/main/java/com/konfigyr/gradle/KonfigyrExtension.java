@@ -11,7 +11,23 @@ import java.net.URI;
 import java.time.Duration;
 
 /**
- * Gradle extension for Konfigyr plugin.
+ * Configuration extension for the Konfigyr Gradle plugin.
+ * <p>
+ * Exposes the {@code konfigyr { }} DSL block in the consuming project's build script:
+ *
+ * <pre>{@code
+ * konfigyr {
+ *     namespace    = "acme-corp" or `KONFIGYR_NAMESPACE` environment property
+ *     clientId     = "acme-corp-client" or `KONFIGYR_CLIENT_ID` environment property
+ *     clientSecret = "acme-corp-secret" or `KONFIGYR_CLIENT_SECRET` environment property
+ *
+ *     // Optional overrides
+ *     host        = "https://api.konfigyr.io"            // defaults to https://api.konfigyr.com
+ *     tokenUri    = "https://id.konfigyr.io/oauth/token" // defaults to https://id.konfigyr.com/oauth/token
+ *     serviceName = "order-service"                      // defaults to project.name
+ *     releasePollTimeout = 10000L                        // defaults to 10 minutes
+ *     releasePollInterval = 1000L                        // defaults to 1 second
+ * }}</pre>
  *
  * @author Vladimir Spasic
  * @since 1.0.0
@@ -65,7 +81,7 @@ public class KonfigyrExtension {
     private final Property<Long> releasePollTimeout;
 
     /**
-     * The initial time interval in milliseconds between consecutive poll attempts to check for a release.
+     * The initial time interval in milliseconds between consecutive polling attempts to check for a release.
      * Defaults to one second.
      * <p>
      * This property specifies the starting interval for an exponential backoff strategy. If a poll attempt
@@ -75,6 +91,12 @@ public class KonfigyrExtension {
      */
     private final Property<Long> releasePollInterval;
 
+    /**
+     * Creates a new {@link KonfigyrExtension} instance.
+     *
+     * @param project the Gradle project
+     * @param factory the Gradle object factory
+     */
     public KonfigyrExtension(Project project, ObjectFactory factory) {
         host = factory.property(String.class).convention(ArtifactoryConfiguration.DEFAULT_HOST.toString());
         tokenUri = factory.property(String.class).convention(ArtifactoryConfiguration.DEFAULT_TOKEN_URI.toString());
