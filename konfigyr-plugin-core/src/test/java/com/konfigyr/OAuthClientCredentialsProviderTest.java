@@ -1,6 +1,5 @@
 package com.konfigyr;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.http.Fault;
 import com.konfigyr.test.AbstractWiremockTest;

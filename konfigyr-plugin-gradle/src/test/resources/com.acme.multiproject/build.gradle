@@ -1,0 +1,41 @@
+plugins {
+    id 'java'
+    id 'com.konfigyr' apply(false)
+}
+
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'com.konfigyr'
+
+    group = 'com.acme'
+    version = '1.0.0'
+
+    repositories {
+        mavenCentral()
+    }
+
+    dependencies {
+        annotationProcessor 'org.springframework.boot:spring-boot-autoconfigure-processor:4.0.3'
+        annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor:4.0.3'
+
+        implementation 'com.github.spotbugs:spotbugs-annotations:4.9.8'
+
+        testImplementation 'org.springframework.boot:spring-boot-starter-test:4.0.3'
+    }
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(25)
+        }
+    }
+
+    konfigyr {
+        host = "${wiremock}"
+        tokenUri = "${wiremock}/oauth/token"
+        namespace = 'konfigyr'
+        clientId = 'konfigyr-client-id'
+        clientSecret = 'konfigyr-client-secret'
+        releasePollTimeout = 3000
+        releasePollInterval = 200
+    }
+}

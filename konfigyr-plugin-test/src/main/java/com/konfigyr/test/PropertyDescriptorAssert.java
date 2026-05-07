@@ -1,6 +1,7 @@
 package com.konfigyr.test;
 
 import com.konfigyr.artifactory.*;
+import com.konfigyr.artifactory.JsonSchema;
 import org.assertj.core.api.AbstractAssert;
 import org.jspecify.annotations.Nullable;
 
@@ -30,10 +31,10 @@ public class PropertyDescriptorAssert extends AbstractAssert<PropertyDescriptorA
         );
     }
 
-    public PropertyDescriptorAssert schema(String schema) {
+    public PropertyDescriptorAssert schema(JsonSchema schema) {
         return check(
                 Objects.equals(actual.schema(), schema),
-                "Expecting that property schema is %s, but was: %s",
+                "Expecting that property JSON schema is %s, but was: %s",
                 schema, actual.schema()
         );
     }

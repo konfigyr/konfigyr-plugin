@@ -1,11 +1,15 @@
 package com.konfigyr;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.google.common.net.HttpHeaders;
 import com.konfigyr.artifactory.*;
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ArrayNode;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -14,6 +18,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.Collection;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -36,10 +41,21 @@ public final class DefaultArtifactoryClient implements ArtifactoryClient {
     private final OAuthClientCredentialsProvider authenticator;
 
     public DefaultArtifactoryClient(ArtifactoryConfiguration configuration) {
-        this(LoggerFactory.getLogger(DefaultArtifactoryClient.class), configuration);
+        this(configuration, JsonMapper.builder()
+                .addModule(new ArtifactoryJacksonModule())
+                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                .changeDefaultPropertyInclusion(inclusion -> inclusion
+                        .withContentInclusion(JsonInclude.Include.NON_EMPTY)
+                        .withValueInclusion(JsonInclude.Include.NON_EMPTY)
+                )
+                .build());
     }
 
-    public DefaultArtifactoryClient(@NonNull Logger logger, @NonNull ArtifactoryConfiguration configuration) {
+    public DefaultArtifactoryClient(ArtifactoryConfiguration configuration, JsonMapper mapper) {
+        this(LoggerFactory.getLogger(DefaultArtifactoryClient.class), configuration, mapper);
+    }
+
+    public DefaultArtifactoryClient(@NonNull Logger logger, @NonNull ArtifactoryConfiguration configuration, @NonNull JsonMapper mapper) {
         this.logger = logger;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(configuration.connectTimeout())
@@ -47,9 +63,7 @@ public final class DefaultArtifactoryClient implements ArtifactoryClient {
                 .version(HttpClient.Version.HTTP_1_1)
                 .build();
 
-        this.mapper = JsonMapper.builder()
-                .addModule(new KonfigyrJacksonModule())
-                .build();
+        this.mapper = mapper;
 
         this.configuration = configuration;
         this.authenticator = new OAuthClientCredentialsProvider(httpClient, configuration);
@@ -62,10 +76,60 @@ public final class DefaultArtifactoryClient implements ArtifactoryClient {
             logger.debug("Retrieving Manifest for service {} in namespace {}", configuration.service(), configuration.namespace());
         }
 
-        final String path = "/namespaces/" + configuration.namespace() + "/" + configuration.service() + "/manifest";
+        final String path = "/namespaces/" + configuration.namespace() + "/services/" + configuration.service() + "/manifest";
         final HttpRequest request = createHttpRequest("GET", path, null);
 
         return execute(request, Manifest.class);
+    }
+
+    @Override
+    public Manifest publish(Collection<? extends Artifact> artifacts) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("Publishing new release for service {} in namespace {} with artifacts: {}",
+                    configuration.service(), configuration.namespace(), artifacts);
+        }
+
+        final HttpRequest.BodyPublisher body;
+
+        try {
+            final ArrayNode coordinates = mapper.createArrayNode();
+
+            for (Artifact artifact : artifacts) {
+                coordinates.add(generateArtifactCoordinates(artifact));
+            }
+
+            body = HttpRequest.BodyPublishers.ofString(
+                    mapper.createObjectNode().set("artifacts", coordinates).toString()
+            );
+        } catch (JacksonException e) {
+            throw new IllegalStateException("Failed to create artifact metadata payload", e);
+        }
+
+        final String path = "/namespaces/" + configuration.namespace() + "/services/" + configuration.service() + "/manifest";
+        final HttpRequest request = createHttpRequest("POST", path, body);
+
+        return execute(request, Manifest.class);
+    }
+
+    @Override
+    public boolean isReleased(@NonNull Artifact artifact) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("Checking if Artifact with coordinates '{}' is already released by Artifactory",
+                    generateArtifactCoordinates(artifact));
+        }
+
+        final HttpRequest request = createHttpRequest("HEAD", generateArtifactPath(artifact), null);
+
+        try {
+            execute(request, Void.TYPE);
+        } catch (HttpResponseException ex) {
+            if (ex.getStatus() == 404) {
+                return false;
+            }
+            throw ex;
+        }
+
+        return true;
     }
 
     @NonNull
@@ -80,10 +144,6 @@ public final class DefaultArtifactoryClient implements ArtifactoryClient {
 
         try {
             body = HttpRequest.BodyPublishers.ofByteArray(mapper.writeValueAsBytes(metadata));
-
-            System.out.println(
-                    mapper.valueToTree(metadata).toPrettyString()
-            );
         } catch (JacksonException e) {
             throw new IllegalStateException("Failed to create artifact metadata payload", e);
         }
@@ -117,17 +177,19 @@ public final class DefaultArtifactoryClient implements ArtifactoryClient {
         return HttpRequest.newBuilder()
                 .method(method, publisher == null ? HttpRequest.BodyPublishers.noBody() : publisher)
                 .uri(uri)
-                .header("Accept", "application/json")
-                .header("Accept-Charset", StandardCharsets.UTF_8.name())
-                .header("Accept-Language", Locale.ENGLISH.toLanguageTag())
-                .header("Authorization", "Bearer " + accessToken)
-                .header("Content-Type", "application/json")
-                .header("User-Agent", configuration.userAgent())
-                .header("X-Request-ID", UUID.randomUUID().toString())
+                .header(HttpHeaders.ACCEPT, "application/json")
+                .header(HttpHeaders.ACCEPT_CHARSET, StandardCharsets.UTF_8.name())
+                .header(HttpHeaders.ACCEPT_LANGUAGE, Locale.ENGLISH.toLanguageTag())
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                .header(HttpHeaders.CONTENT_TYPE, "application/json")
+                .header(HttpHeaders.USER_AGENT, configuration.userAgent())
+                .header(HttpHeaders.X_REQUEST_ID, UUID.randomUUID().toString())
                 .timeout(configuration.readTimeout())
                 .build();
     }
 
+    @NonNull
+    @SuppressWarnings("unchecked")
     private <T> T execute(HttpRequest request, Class<T> type) {
         if (logger.isDebugEnabled()) {
             logger.debug("Executing HTTP request: {} {}", request.method(), request.uri());
@@ -170,6 +232,10 @@ public final class DefaultArtifactoryClient implements ArtifactoryClient {
                     "error response: " + response.body(), request, response);
         }
 
+        if (type == Void.TYPE) {
+            return (T) Void.TYPE;
+        }
+
         try {
             return mapper.readValue(response.body(), type);
         } catch (JacksonException e) {
@@ -180,5 +246,10 @@ public final class DefaultArtifactoryClient implements ArtifactoryClient {
     @NonNull
     private static String generateArtifactPath(@NonNull Artifact artifact) {
         return "/artifacts/" + artifact.groupId() + "/" + artifact.artifactId() + "/" + artifact.version();
+    }
+
+    @NonNull
+    private static String generateArtifactCoordinates(@NonNull Artifact artifact) {
+        return artifact.groupId() + ":" + artifact.artifactId() + ":" + artifact.version();
     }
 }

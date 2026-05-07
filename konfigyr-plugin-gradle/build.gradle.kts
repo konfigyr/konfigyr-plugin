@@ -7,7 +7,7 @@ dependencies {
     implementation(project(":konfigyr-plugin-core"))
 
     testImplementation(project(":konfigyr-plugin-test"))
-    testImplementation("org.springframework.boot:spring-boot-starter:4.0.2")
+    testImplementation(libs.spring.starter)
 }
 
 gradlePlugin {

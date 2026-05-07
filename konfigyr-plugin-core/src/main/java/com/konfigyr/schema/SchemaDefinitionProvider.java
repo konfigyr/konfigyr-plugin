@@ -1,9 +1,9 @@
 package com.konfigyr.schema;
 
 import com.fasterxml.classmate.ResolvedType;
-import org.jspecify.annotations.NonNull;
+import com.konfigyr.artifactory.JsonSchema;
+import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
-import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Interface for providing a JSON Schema definition for a given {@link ResolvedType}.
@@ -11,7 +11,8 @@ import tools.jackson.databind.node.ObjectNode;
  * @author Vladimir Spasic
  * @since 1.0.0
  */
-public interface SchemaDefinitionProvider {
+@NullMarked
+public interface SchemaDefinitionProvider<T extends JsonSchema, B extends JsonSchema.Builder<T, B>> {
 
     /**
      * Attempts to provide a JSON Schema definition for the given {@link ResolvedType}.
@@ -21,6 +22,6 @@ public interface SchemaDefinitionProvider {
      * @return the resolved JSON Schema definition, or {@literal null} if no schema is available for the given type.
      */
     @Nullable
-    ObjectNode provide(@NonNull ResolvedType type, @NonNull SchemaGenerationContext context);
+    B provide(ResolvedType type, SchemaGenerationContext context);
 
 }

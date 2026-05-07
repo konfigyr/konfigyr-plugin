@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.*;
+import static com.github.tomakehurst.wiremock.client.WireMock.*;
 
 class ArtifactoryClientTest extends AbstractWiremockTest {
 
@@ -136,6 +137,77 @@ class ArtifactoryClientTest extends AbstractWiremockTest {
     }
 
     @Test
+    @DisplayName("should publish new service release with artifacts to Artifactory")
+    void publishServiceManifest() {
+        stubFactories.tokenExchangeSuccessFor(configuration);
+        stubFactories.publishResponseFor(configuration, "konfigyr-publish-service-manifest.json");
+
+        final var artifacts = List.of(
+                Artifact.of("com.konfigyr", "konfigyr-artifactory", "1.0.0"),
+                Artifact.of("com.konfigyr", "konfigyr-crypto-api", "1.0.0")
+        );
+
+        assertThatObject(client.publish(artifacts))
+                .isNotNull()
+                .returns("6274e1984052", Manifest::id)
+                .returns("konfigyr-published-service", Manifest::name)
+                .returns(artifacts, Manifest::artifacts);
+    }
+
+    @Test
+    @DisplayName("should fail to publish new service release due to validation errors")
+    void publishServiceManifestBadRequest() {
+        stubFactories.tokenExchangeSuccessFor(configuration);
+        stubFactories.publishResponseFor(configuration, WireMock.aResponse().withStatus(400));
+
+        assertThatExceptionOfType(HttpResponseException.class)
+                .isThrownBy(() -> client.publish(List.of()))
+                .withMessageContaining("Konfigyr REST API returned a 4xx HTTP Status")
+                .satisfies(assertResponseError(400));
+    }
+
+    @Test
+    @DisplayName("should check if Artifact is published in Artifactory when responding with 200 status code")
+    void releaseExists() {
+        final var artifact = Artifact.of("com.konfigyr", "konfigyr-crypto-jdbc", "1.0.0");
+
+        stubFactories.tokenExchangeSuccessFor(configuration);
+        stubFactories.getReleaseExistsResponseFor(artifact, true);
+
+        assertThat(client.isReleased(artifact))
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("should check if Artifact is published in Artifactory when responding with 404 status code")
+    void releaseDoesNotExists() {
+        final var artifact = Artifact.of("com.konfigyr", "konfigyr-crypto-jdbc", "1.0.0");
+
+        stubFactories.tokenExchangeSuccessFor(configuration);
+        stubFactories.getReleaseExistsResponseFor(artifact, false);
+
+        assertThat(client.isReleased(artifact))
+                .isFalse();
+    }
+
+    @Test
+    @DisplayName("should check if Artifact is published in Artifactory when responding with 5xx status code")
+    void releaseExistsFailed() {
+        final var artifact = Artifact.of("com.konfigyr", "konfigyr-crypto-jdbc", "1.0.0");
+
+        stubFactories.tokenExchangeSuccessFor(configuration);
+        stubFactories.getReleaseExistsResponseFor(
+                WireMock.urlPathTemplate("/artifacts/{groupId}/{artifactId}/{version}"),
+                WireMock.aResponse().withStatus(500)
+        );
+
+        assertThatExceptionOfType(HttpResponseException.class)
+                .isThrownBy(() -> client.isReleased(artifact))
+                .withMessageContaining("Konfigyr REST API returned a 5xx HTTP Status")
+                .satisfies(assertResponseError(500));
+    }
+
+    @Test
     @DisplayName("should upload artifact metadata to Artifactory")
     void uploadArtifactMetadata() {
         final var artifact = Artifact.of("com.konfigyr", "konfigyr-crypto-jdbc", "1.0.0");
@@ -143,8 +215,20 @@ class ArtifactoryClientTest extends AbstractWiremockTest {
                 PropertyDescriptor.builder()
                         .name("konfigyr.message")
                         .typeName("java.lang.String")
-                        .schema("{\"type\": \"string\", \"description\": \"A message property, can be used anywhere.\"}")
-                        .build()
+                        .schema(StringSchema.builder()
+                                .title("message")
+                                .description("A message property, can be used anywhere.")
+                                .example("Hello, world!")
+                                .build()
+                        ).build(),
+                PropertyDescriptor.builder()
+                        .name("konfigyr.enabled")
+                        .typeName("java.lang.Boolean")
+                        .schema(BooleanSchema.builder()
+                                .description("Konfigyr enabled flag, defaults to true.")
+                                .defaultValue(true)
+                                .build()
+                        ).build()
         ));
 
         stubFactories.tokenExchangeSuccessFor(configuration);
@@ -162,9 +246,21 @@ class ArtifactoryClientTest extends AbstractWiremockTest {
                 .returns(ReleaseState.PENDING, Release::state)
                 .returns(List.of(), Release::errors)
                 .returns(metadata.checksum(), Release::checksum)
-                .satisfies(it -> assertThat(it.releaseDate())
+                .satisfies(it -> assertThat(it.releasedAt())
                         .isCloseTo(Instant.now(), within(500, ChronoUnit.MILLIS))
                 );
+
+        wiremock.verify(postRequestedFor(urlPathEqualTo("/artifacts/com.konfigyr/konfigyr-crypto-jdbc/1.0.0"))
+                .withRequestBody(equalToJson(
+                        "{\"groupId\":\"com.konfigyr\",\"artifactId\":\"konfigyr-crypto-jdbc\",\"version\":\"1.0.0\"," +
+                                "\"properties\":[{\"name\":\"konfigyr.enabled\",\"typeName\":\"java.lang.Boolean\"," +
+                                "\"schema\":{\"type\":\"boolean\",\"defaultValue\":true," +
+                                "\"description\":\"Konfigyr enabled flag, defaults to true.\"}}," +
+                                "{\"name\":\"konfigyr.message\",\"typeName\":\"java.lang.String\"," +
+                                "\"schema\":{\"description\":\"A message property, can be used anywhere.\"," +
+                                "\"examples\":[\"Hello, world!\"],\"title\":\"message\",\"type\":\"string\"}}]}"
+                ))
+        );
     }
 
     @Test
@@ -175,8 +271,10 @@ class ArtifactoryClientTest extends AbstractWiremockTest {
                 PropertyDescriptor.builder()
                         .name("konfigyr.message")
                         .typeName("java.lang.String")
-                        .schema("{\"type\": \"string\", \"description\": \"A message property, can be used anywhere.\"}")
-                        .build()
+                        .schema(StringSchema.builder()
+                                .description("A message property, can be used anywhere.")
+                                .build()
+                        ).build()
         ));
 
         stubFactories.tokenExchangeSuccessFor(configuration);
@@ -210,7 +308,7 @@ class ArtifactoryClientTest extends AbstractWiremockTest {
                 .returns(ReleaseState.PENDING, Release::state)
                 .returns(List.of(), Release::errors)
                 .returns("checksum", Release::checksum)
-                .satisfies(it -> assertThat(it.releaseDate())
+                .satisfies(it -> assertThat(it.releasedAt())
                         .isCloseTo(Instant.now(), within(500, ChronoUnit.MILLIS))
                 );
     }

@@ -1,0 +1,16 @@
+{
+  "id": "6274e1984052",
+  "name": "konfigyr-published-service",
+  "artifacts": [
+    {
+      "groupId": "com.konfigyr",
+      "artifactId": "konfigyr-artifactory",
+      "version": "1.0.0"
+    },
+    {
+      "groupId": "com.konfigyr",
+      "artifactId": "konfigyr-crypto-api",
+      "version": "1.0.0"
+    }
+  ]
+}

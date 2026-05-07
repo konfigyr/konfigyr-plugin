@@ -2,6 +2,8 @@ package com.konfigyr.schema;
 
 import com.fasterxml.classmate.ResolvedType;
 import com.fasterxml.classmate.TypeResolver;
+import com.konfigyr.TypeLoader;
+import com.konfigyr.artifactory.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -9,11 +11,9 @@ import org.jspecify.annotations.NullMarked;
 import org.springframework.boot.configurationmetadata.ConfigurationMetadataProperty;
 import org.springframework.boot.configurationmetadata.Hints;
 import org.springframework.boot.configurationmetadata.ValueHint;
-import tools.jackson.databind.node.ArrayNode;
-import tools.jackson.databind.node.JsonNodeFactory;
-import tools.jackson.databind.node.ObjectNode;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
@@ -31,8 +31,8 @@ public final class SchemaGenerationContext {
 
     @Getter
     private final ConfigurationMetadataProperty configurationMetadataProperty;
-    private final JsonNodeFactory jsonNodeFactory;
     private final TypeResolver typeResolver;
+    private final TypeLoader typeLoader;
 
     /**
      * Resolves the given type to a {@link ResolvedType}.
@@ -41,26 +41,40 @@ public final class SchemaGenerationContext {
      * @return the resolved type, never {@literal null}.
      */
     public ResolvedType resolveType(Class<?> type) {
-        return typeResolver.resolve(type);
+        Class<?> loadedType;
+
+        try {
+            loadedType = typeLoader.load(type);
+        } catch (ClassNotFoundException e) {
+            try {
+                loadedType = typeLoader.load(String.class.getCanonicalName());
+            } catch (ClassNotFoundException ex) {
+                throw new IllegalStateException(ex);
+            }
+        }
+
+        return typeResolver.resolve(loadedType);
     }
 
     /**
-     * Creates a new {@link ObjectNode} with a single {@code type} property set to the given value.
+     * Creates a new {@link JsonSchema} builder instance with a specified {@code JsonSchemaType}.
      *
      * @param type the JSON Schema type to be set, never {@literal null}.
-     * @return the created {@link ObjectNode JSON Schema}, never {@literal null}.
+     * @param <T> the concrete type of the JSON Schema.
+     * @param <B> the concrete type of the JSON Schema builder.
+     * @return the created {@link JsonSchema JSON Schema} builder, never {@literal null}.
      */
-    public ObjectNode createSchema(String type) {
-        return jsonNodeFactory.objectNode().put("type", type);
-    }
-
-    /**
-     * Returns the {@link JsonNodeFactory} used to create JSON nodes required for schema generation.
-     *
-     * @return the JSON node factory, never {@literal null}.
-     */
-    public JsonNodeFactory getNodeFactory() {
-        return jsonNodeFactory;
+    @SuppressWarnings("unchecked")
+    public <T extends JsonSchema, B extends JsonSchema.Builder<T, B>> B createSchema(JsonSchemaType type) {
+        return (B) switch (type) {
+            case ARRAY -> ArraySchema.builder();
+            case BOOLEAN -> BooleanSchema.builder();
+            case INTEGER -> IntegerSchema.builder();
+            case NUMBER -> NumberSchema.builder();
+            case STRING -> StringSchema.builder();
+            case OBJECT -> ObjectSchema.builder();
+            default -> NullSchema.builder();
+        };
     }
 
     /**
@@ -69,7 +83,7 @@ public final class SchemaGenerationContext {
      *
      * @return the extracted key hints, or an empty {@link Optional} if no key hints are available.
      */
-    public Optional<ArrayNode> extractKeyHints() {
+    public Optional<Collection<String>> extractKeyHints() {
         return extractHints(Hints::getKeyHints);
     }
 
@@ -79,11 +93,11 @@ public final class SchemaGenerationContext {
      *
      * @return the extracted value hints, or an empty {@link Optional} if no key hints are available.
      */
-    public Optional<ArrayNode> extractValueHints() {
+    public Optional<Collection<String>> extractValueHints() {
         return extractHints(Hints::getValueHints);
     }
 
-    private Optional<ArrayNode> extractHints(Function<Hints, Collection<ValueHint>> provider) {
+    private Optional<Collection<String>> extractHints(Function<Hints, Collection<ValueHint>> provider) {
         final Hints hints = configurationMetadataProperty.getHints();
 
         if (hints == null) {
@@ -96,15 +110,14 @@ public final class SchemaGenerationContext {
             return Optional.empty();
         }
 
-        final ArrayNode examples = jsonNodeFactory.arrayNode(values.size());
 
-        values.stream()
+        final List<String> examples = values.stream()
                 .map(ValueHint::getValue)
                 .map(value -> Objects.toString(value, null))
                 .filter(Objects::nonNull)
                 .filter(Predicate.not(String::isBlank))
                 .sorted()
-                .forEachOrdered(examples::add);
+                .toList();
 
         return Optional.of(examples);
     }

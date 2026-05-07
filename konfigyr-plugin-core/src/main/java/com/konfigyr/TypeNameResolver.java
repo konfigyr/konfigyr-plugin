@@ -9,7 +9,6 @@ import com.github.javaparser.ast.type.Type;
 import com.github.javaparser.ast.type.WildcardType;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
-import org.springframework.util.ClassUtils;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
@@ -35,13 +34,18 @@ import java.util.concurrent.ConcurrentHashMap;
  **/
 final class TypeNameResolver {
 
-    private final ClassLoader loader;
+    private final TypeLoader loader;
+    private final TypeResolver resolver;
     private final JavaParser parser = new JavaParser();
-    private final TypeResolver resolver = new TypeResolver();
     private final Map<String, ResolvedPropertyType> cache = new ConcurrentHashMap<>(128, 0.5f, 4);
 
     public TypeNameResolver(@NonNull ClassLoader loader) {
+        this(new TypeLoader(loader), new TypeResolver());
+    }
+
+    public TypeNameResolver(@NonNull TypeLoader loader, @NonNull TypeResolver resolver) {
         this.loader = loader;
+        this.resolver = resolver;
     }
 
     @Nullable
@@ -88,7 +92,7 @@ final class TypeNameResolver {
     @Nullable
     private ResolvedType resolve(Type type) throws ClassNotFoundException {
         if (type.isArrayType() || type.isPrimitiveType()) {
-            return resolver.resolve(loadClass(type.asString()));
+            return resolver.resolve(loader.load(type.asString()));
         }
 
         if (type.isWildcardType()) {
@@ -120,28 +124,19 @@ final class TypeNameResolver {
                 }
 
                 return resolver.resolve(
-                        loadClass(resolvedType.getNameWithScope()),
+                        loader.load(resolvedType.getNameWithScope()),
                         parameters.toArray(new ResolvedType[0])
                 );
             }
 
-            return resolver.resolve(loadClass(resolvedType.getNameWithScope()));
+            return resolver.resolve(loader.load(resolvedType.getNameWithScope()));
         }
 
         throw new ClassNotFoundException("Could not resolve type for: " + type);
     }
 
     @NonNull
-    private Class<?> loadClass(String className) throws ClassNotFoundException {
-        try {
-            return ClassUtils.forName(StringUtils.trimAllWhitespace(className), loader);
-        } catch (LinkageError e) {
-            throw new ClassNotFoundException(e.getMessage(), e);
-        }
-    }
-
-    @NonNull
-    static private ResolvedPropertyType createResolvedType(@NonNull ResolvedType type) {
+    static ResolvedPropertyType createResolvedType(@NonNull ResolvedType type) {
         final List<ResolvedPropertyType> parameters = new ArrayList<>();
 
         if (!type.getTypeParameters().isEmpty()) {

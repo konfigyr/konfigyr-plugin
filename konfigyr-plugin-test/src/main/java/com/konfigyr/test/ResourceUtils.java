@@ -1,11 +1,11 @@
 package com.konfigyr.test;
 
-import org.apache.commons.io.IOUtils;
 import org.jspecify.annotations.NonNull;
 import org.junit.platform.commons.function.Try;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
+import wiremock.org.apache.commons.io.IOUtils;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -40,7 +40,7 @@ public final class ResourceUtils {
     }
 
     @NonNull
-    public static Iterable<Resource> loadResources(String... locations) throws IOException {
+    public static Iterable<? extends Resource> loadResources(String... locations) throws IOException {
         final List<Resource> resources = new ArrayList<>();
 
         for (String location : locations) {

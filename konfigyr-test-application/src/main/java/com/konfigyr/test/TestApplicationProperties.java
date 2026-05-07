@@ -5,12 +5,19 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import lombok.Data;
-import org.springframework.boot.autoconfigure.security.saml2.Saml2RelyingPartyProperties;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.DeprecatedConfigurationProperty;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
+import org.springframework.boot.data.jdbc.autoconfigure.DataJdbcDatabaseDialect;
 import org.springframework.boot.jdbc.EmbeddedDatabaseConnection;
+import org.springframework.core.io.Resource;
+import org.springframework.http.MediaType;
+import org.springframework.util.unit.DataSize;
 
+import java.math.BigInteger;
+import java.net.Inet4Address;
+import java.net.Inet6Address;
+import java.net.URI;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +45,17 @@ public class TestApplicationProperties {
     private Integer port = 8080;
 
     /**
+     * Array of allowed IP addresses.
+     */
+    private Inet4Address[] allowedIps;
+
+    /**
+     * Array of blocked IP addresses.
+     */
+    @NotEmpty
+    private Inet6Address[] blockedIps;
+
+    /**
      * The value using the enumeration as a value. This should provide value hints for per enumeration value.
      */
     @NotNull
@@ -60,9 +78,9 @@ public class TestApplicationProperties {
     private EmbeddedDatabaseConnection embeddedDatabaseConnection;
 
     /**
-     * Property that would trigger {@code NoClassDefFoundError} for missing {@code Saml2MessageBinding} type.
+     * Property that would trigger {@code NoClassDefFoundError} for missing {@code DataJdbcDatabaseDialect} type.
      */
-    private Map<String, Saml2RelyingPartyProperties.AssertingParty> assertingParties;
+    private Map<String, ConnectionConfiguration> connections;
 
     /**
      * Dynamic configuration properties.
@@ -78,11 +96,11 @@ public class TestApplicationProperties {
     }
 
     public enum EnumeratedOptions {
-        OPTION_1, OPTION_2, OPTION_3;
+        OPTION_1, OPTION_2, OPTION_3
     }
 
     public enum EnumeratedKey {
-        VALUE_1, VALUE_2, VALUE_3;
+        VALUE_1, VALUE_2, VALUE_3
     }
 
     @Data
@@ -101,6 +119,51 @@ public class TestApplicationProperties {
          * Duration used by the nested property.
          */
         private Duration duration = Duration.ofSeconds(10);
+
+        /**
+         * Resource property.
+         */
+        private Resource resource;
+
+        /**
+         * Content type of the resource.
+         */
+        private MediaType contentType = MediaType.APPLICATION_JSON;
+    }
+
+    @Data
+    public static class ConnectionConfiguration {
+
+        /**
+         * URI of the connection.
+         */
+        URI key;
+
+        /**
+         * Max data size for the connection.
+         */
+        DataSize size;
+
+        /**
+         * How long the connection should be in the pool.
+         */
+        Duration ttl = Duration.ofMinutes(10);
+
+        /**
+         * The pool size.
+         */
+        BigInteger maxPoolSize = BigInteger.valueOf(10);
+
+        @NestedConfigurationProperty
+        MissingConfigurationType missing;
+
+    }
+
+    @Data
+    public static class MissingConfigurationType {
+
+        DataJdbcDatabaseDialect dialect;
+
     }
 
 }

@@ -2,9 +2,10 @@ package com.konfigyr.schema;
 
 import com.fasterxml.classmate.ResolvedType;
 import com.fasterxml.classmate.members.RawMember;
-import org.jspecify.annotations.NonNull;
-import tools.jackson.databind.node.ArrayNode;
-import tools.jackson.databind.node.ObjectNode;
+import com.konfigyr.artifactory.JsonSchemaType;
+import com.konfigyr.artifactory.StringSchema;
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Arrays;
 import java.util.stream.Stream;
@@ -15,12 +16,13 @@ import java.util.stream.Stream;
  * @author Vladimir Spasic
  * @since 1.0.0
  */
-public class EnumSchemaDefinitionProvider implements SchemaDefinitionProvider {
+@NullMarked
+class EnumSchemaDefinitionProvider implements SchemaDefinitionProvider<StringSchema, StringSchema.Builder> {
 
     @Override
-    public ObjectNode provide(@NonNull ResolvedType type, @NonNull SchemaGenerationContext context) {
-        if (type.isInstanceOf(Enum.class)) {
-            final ObjectNode schema = context.createSchema("string");
+    public StringSchema.@Nullable Builder provide(ResolvedType type, SchemaGenerationContext context) {
+        if (type.getErasedType().isEnum()) {
+            final StringSchema.Builder schema = context.createSchema(JsonSchemaType.STRING);
 
             Stream<String> values = enumConstantsFor(type);
 
@@ -28,19 +30,17 @@ public class EnumSchemaDefinitionProvider implements SchemaDefinitionProvider {
                 values = enumFieldsFor(type);
             }
 
-            if (values == null) {
-                values = Stream.empty();
+            if (values != null) {
+                values.forEach(schema::enumeration);
             }
 
-            final ArrayNode array = context.getNodeFactory().arrayNode();
-            values.sorted().forEach(array::add);
-
-            return schema.set("enum", array);
+            return schema;
         }
 
         return null;
     }
 
+    @Nullable
     private Stream<String> enumConstantsFor(ResolvedType type) {
         try {
             return Arrays.stream(type.getErasedType().getEnumConstants())
@@ -51,6 +51,7 @@ public class EnumSchemaDefinitionProvider implements SchemaDefinitionProvider {
         }
     }
 
+    @Nullable
     private Stream<String> enumFieldsFor(ResolvedType type) {
         try {
             return type.getStaticFields().stream()

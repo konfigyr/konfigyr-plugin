@@ -1,7 +1,10 @@
 package com.konfigyr.schema;
 
 import com.fasterxml.classmate.ResolvedType;
-import org.jspecify.annotations.NonNull;
+import com.fasterxml.classmate.TypeResolver;
+import com.konfigyr.TypeLoader;
+import com.konfigyr.artifactory.JsonSchema;
+import org.jspecify.annotations.NullMarked;
 import org.springframework.boot.configurationmetadata.ConfigurationMetadataProperty;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -14,16 +17,18 @@ import tools.jackson.databind.node.ObjectNode;
  * @author Vladimir Spasic
  * @since 1.0.0
  */
+@NullMarked
 public interface JsonSchemaGenerator {
 
     /**
      * Create a default implementation of the {@link JsonSchemaGenerator} instance.
      *
+     * @param typeLoader the type loader to use, never {@literal null}.
+     * @param typeResolver the type resolver to use, never {@literal null}.
      * @return the default implementation, never {@literal null}.
      */
-    @NonNull
-    static JsonSchemaGenerator createDefaultGenerator() {
-        return new DefaultJsonSchemaGenerator();
+    static JsonSchemaGenerator createDefaultGenerator(TypeLoader typeLoader, TypeResolver typeResolver) {
+        return new DefaultJsonSchemaGenerator(typeLoader, typeResolver);
     }
 
     /**
@@ -33,18 +38,6 @@ public interface JsonSchemaGenerator {
      * @param metadata configuration property metadata for the given type
      * @return a non-null {@link ObjectNode} containing the JSON schema
      */
-    @NonNull
-    ObjectNode generateSchema(@NonNull ResolvedType type, @NonNull ConfigurationMetadataProperty metadata);
+    JsonSchema generateSchema(ResolvedType type, ConfigurationMetadataProperty metadata);
 
-    /**
-     * Convenience method to generate schema as a compact JSON string.
-     *
-     * @param type resolved property type
-     * @param metadata configuration property metadata for the given type
-     * @return a non-null {@link String} containing the JSON schema
-     */
-    @NonNull
-    default String generateSchemaAsString(@NonNull ResolvedType type, @NonNull ConfigurationMetadataProperty metadata) {
-        return generateSchema(type, metadata).toString();
-    }
 }

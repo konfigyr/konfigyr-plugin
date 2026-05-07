@@ -2,14 +2,16 @@ package com.konfigyr.schema;
 
 import com.fasterxml.classmate.ResolvedType;
 import com.fasterxml.classmate.TypeResolver;
-import com.fasterxml.classmate.types.ResolvedObjectType;
 import com.fasterxml.classmate.util.ClassKey;
+import com.konfigyr.TypeLoader;
+import com.konfigyr.artifactory.ArraySchema;
+import com.konfigyr.artifactory.JsonSchema;
+import com.konfigyr.artifactory.JsonSchemaType;
+import com.konfigyr.artifactory.ObjectSchema;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.springframework.boot.configurationmetadata.ConfigurationMetadataProperty;
 import org.springframework.util.Assert;
-import tools.jackson.databind.node.ArrayNode;
-import tools.jackson.databind.node.JsonNodeFactory;
-import tools.jackson.databind.node.ObjectNode;
 
 import java.lang.reflect.Field;
 import java.util.*;
@@ -23,125 +25,148 @@ import java.util.*;
  */
 final class DefaultJsonSchemaGenerator implements JsonSchemaGenerator {
 
-    private final TypeResolver resolver = new TypeResolver();
-    private final Set<ResolvedType> visiting = Collections.newSetFromMap(new IdentityHashMap<>());
+    private final TypeLoader typeLoader;
+    private final TypeResolver typeResolver;
+    private final Set<ResolvedType> visiting;
+    private final List<SchemaDefinitionProvider<?, ?>> providers;
 
-    private final List<SchemaDefinitionProvider> providers = List.of(
-            new PrimitiveSchemaDefinitionProvider(),
-            new EnumSchemaDefinitionProvider()
-    );
+    public DefaultJsonSchemaGenerator(TypeLoader typeLoader, TypeResolver typeResolver) {
+        this.typeLoader = typeLoader;
+        this.typeResolver = typeResolver;
+        this.visiting = Collections.newSetFromMap(new IdentityHashMap<>());
+        this.providers = List.of(
+                new PrimitiveSchemaDefinitionProvider<>(typeLoader),
+                new EnumSchemaDefinitionProvider()
+        );
+    }
 
     @NonNull
     @Override
-    public ObjectNode generateSchema(@NonNull ResolvedType type, @NonNull ConfigurationMetadataProperty metadata) {
+    public JsonSchema generateSchema(@NonNull ResolvedType type, @NonNull ConfigurationMetadataProperty metadata) {
         Assert.notNull(type, "Type must not be null");
         Assert.notNull(metadata, "Configuration metadata must not be null");
 
-        return generateSchema(type, new SchemaGenerationContext(metadata, JsonNodeFactory.instance, resolver));
+        return generateSchema(type, new SchemaGenerationContext(metadata, typeResolver, typeLoader));
     }
 
-    private ObjectNode generateSchema(@NonNull ResolvedType type, @NonNull SchemaGenerationContext context) {
-        ObjectNode schema = null;
-        Iterator<SchemaDefinitionProvider> iterator = providers.iterator();
+    private JsonSchema generateSchema(@NonNull ResolvedType type, @NonNull SchemaGenerationContext context) {
+        JsonSchema.Builder<?, ?> builder = generateSchemaBuilder(type, context);
+
+        if (builder == null) {
+            builder = context.createSchema(JsonSchemaType.STRING);
+        }
+
+        return builder.build();
+    }
+
+    @Nullable
+    @SuppressWarnings("unchecked")
+    private <T extends JsonSchema, B extends JsonSchema.Builder<T, B>> B generateSchemaBuilder(
+            @NonNull ResolvedType type,
+            @NonNull SchemaGenerationContext context
+    ) {
+        JsonSchema.Builder<?, ?> schema = null;
+        Iterator<SchemaDefinitionProvider<?, ?>> iterator = providers.iterator();
 
         while (iterator.hasNext() && schema == null) {
             schema = iterator.next().provide(type, context);
         }
 
         if (schema != null) {
-            return schema;
+            return (B) schema;
         }
 
         // Prevent infinite recursion on self-referential types, just return a simple
         // JSON Schema with a string type and no properties.
         if (visiting.contains(type)) {
-            return context.createSchema("string");
+            return context.createSchema(JsonSchemaType.STRING);
         }
 
         visiting.add(type);
 
         try {
             if (type.isArray()) {
-                return context.createSchema("array").set("items", generateSchema(
+                final ArraySchema.Builder builder = context.createSchema(JsonSchemaType.ARRAY);
+
+                return (B) builder.items(generateSchema(
                         type.getArrayElementType(), context
                 ));
             }
 
             if (type.isInstanceOf(Optional.class)) {
                 final ResolvedType itemType = type.getTypeParameters().isEmpty() ?
-                        new ResolvedObjectType(String.class, null, null, Collections.emptyList())
-                        : type.getTypeParameters().get(0);
+                        context.resolveType(String.class) : type.getTypeParameters().getFirst();
 
-                return generateSchema(itemType, context);
+                return generateSchemaBuilder(itemType, context);
             }
 
             if (type.isInstanceOf(Collection.class)) {
                 final ResolvedType itemType = type.getTypeParameters().isEmpty() ?
-                        new ResolvedObjectType(String.class, null, null, Collections.emptyList())
-                        : type.getTypeParameters().get(0);
+                        context.resolveType(String.class) : type.getTypeParameters().getFirst();
 
-                return context.createSchema("array").set("items", generateSchema(
-                        itemType, context
-                ));
+                final ArraySchema.Builder builder = context.createSchema(JsonSchemaType.ARRAY);
+                return (B) builder.items(generateSchema(itemType, context));
             }
 
             if (type.isInstanceOf(Map.class)) {
                 final ResolvedType keyType = type.getTypeParameters().isEmpty() ?
-                        new ResolvedObjectType(String.class, null, null, Collections.emptyList())
-                        : type.getTypeParameters().get(0);
+                        context.resolveType(String.class) : type.getTypeParameters().get(0);
 
                 final ResolvedType valueType = type.getTypeParameters().isEmpty() ?
-                        new ResolvedObjectType(String.class, null, null, Collections.emptyList())
-                        : type.getTypeParameters().get(1);
+                        context.resolveType(String.class) : type.getTypeParameters().get(1);
 
-                final ObjectNode propertyNames = generateSchema(keyType, context);
-                context.extractKeyHints().ifPresent(examples -> propertyNames.set("examples", examples));
+                final ObjectSchema.Builder builder = context.createSchema(JsonSchemaType.OBJECT);
+                final JsonSchema.Builder<?, ?> propertyNames = generateSchemaBuilder(keyType, context);
+                final JsonSchema.Builder<?, ?> additionalProperties = generateSchemaBuilder(valueType, context);
 
-                final ObjectNode additionalProperties = generateSchema(valueType, context);
-                context.extractValueHints().ifPresent(examples -> additionalProperties.set("examples", examples));
+                if (propertyNames != null) {
+                    context.extractKeyHints().ifPresent(propertyNames::examples);
+                    builder.propertyNames(propertyNames.build());
+                }
 
-                final ObjectNode node = context.createSchema("object");
-                node.set("propertyNames", propertyNames);
-                node.set("additionalProperties", additionalProperties);
-                return node;
+                if (additionalProperties != null) {
+                    context.extractValueHints().ifPresent(additionalProperties::examples);
+                    builder.additionalProperties(additionalProperties.build());
+                }
+
+                return (B) builder;
             }
 
-            return objectFromPojo(type, context);
+            return (B) objectFromPojo(type, context);
         } finally {
             visiting.remove(type);
         }
     }
 
-    private ObjectNode objectFromPojo(ResolvedType type, SchemaGenerationContext context) {
-        final ObjectNode node = context.createSchema("object");
-        final ObjectNode properties = context.getNodeFactory().objectNode();
-        final ArrayNode required = context.getNodeFactory().arrayNode();
+    private ObjectSchema.Builder objectFromPojo(ResolvedType type, SchemaGenerationContext context) {
+        final ObjectSchema.Builder builder = context.createSchema(JsonSchemaType.OBJECT);
 
         for (PropertyCandidate candidate : collectPropertyCandidates(type)) {
             if (candidate.isStatic() || candidate.isTransient()) {
                 continue;
             }
 
-            final ObjectNode schema = generateSchema(
+            final JsonSchema.Builder<?, ?> schema = generateSchemaBuilder(
                     context.resolveType(candidate.getType()),
                     context
             );
 
-            if (candidate.isDeprecated()) {
-                schema.put("deprecated", true);
+            if (schema == null) {
+                continue;
             }
 
-            properties.set(candidate.getName(), schema);
+            if (candidate.isDeprecated()) {
+                schema.deprecated(candidate.isDeprecated());
+            }
+
+            builder.property(candidate.getName(), schema.build());
 
             if (candidate.isRequired()) {
-                required.add(candidate.getName());
+                builder.required(candidate.getName());
             }
         }
-        node.set("properties", properties);
-        if (!required.isEmpty()) {
-            node.set("required", required);
-        }
-        return node;
+
+        return builder;
     }
 
     private List<PropertyCandidate> collectPropertyCandidates(ResolvedType type) {

@@ -1,11 +1,13 @@
 package com.konfigyr.schema;
 
 import com.fasterxml.classmate.ResolvedType;
-import org.jspecify.annotations.NonNull;
+import com.konfigyr.TypeLoader;
+import com.konfigyr.artifactory.*;
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 import org.springframework.core.io.Resource;
 import org.springframework.util.MimeType;
 import org.springframework.util.unit.DataSize;
-import tools.jackson.databind.node.ObjectNode;
 
 import java.io.File;
 import java.math.BigDecimal;
@@ -24,81 +26,49 @@ import java.util.stream.Stream;
  * @author Vladimir Spasic
  * @since 1.0.0
  */
-final class PrimitiveSchemaDefinitionProvider implements SchemaDefinitionProvider {
+@NullMarked
+final class PrimitiveSchemaDefinitionProvider<T extends JsonSchema, B extends JsonSchema.Builder<T, B>> implements SchemaDefinitionProvider<T, B> {
 
-    static final Set<PrimitiveSchemaDefinition> definitions = new LinkedHashSet<>();
+    private final Set<PrimitiveSchemaDefinition> definitions;
 
-    static {
-        Stream.of(
-                String.class, Character.class, char.class, CharSequence.class,
-                Byte.class, byte.class, InetAddress.class, Class.class
-        ).forEach(PrimitiveSchemaDefinitionProvider::registerStringType);
-
-        Stream.of(URI.class, URL.class, File.class, Path.class)
-                .forEach(javaType -> registerStringType(javaType, "uri"));
-
-        /* Java time */
-        registerStringType(LocalDate.class, "date");
-        Stream.of(LocalDateTime.class, ZonedDateTime.class, OffsetDateTime.class, Instant.class, Date.class, Calendar.class)
-                .forEach(javaType -> registerStringType(javaType, "date-time"));
-        Stream.of(LocalTime.class, OffsetTime.class)
-                .forEach(javaType -> registerStringType(javaType, "time"));
-        Stream.of(Duration.class, Period.class)
-                .forEach(javaType -> registerStringType(javaType, "duration"));
-
-        /* Custom string type formats */
-        registerStringType(UUID.class, "uuid");
-        registerStringType(Charset.class, "charset");
-        registerStringType(ZoneId.class, "time-zone");
-        registerStringType(TimeZone.class, "time-zone");
-        registerStringType(Locale.class, "language");
-        registerStringType(Resource.class, "resource");
-        registerStringType(MimeType.class, "mime-type");
-        registerStringType(DataSize.class, "data-size");
-        registerStringType(Inet4Address.class, "ipv4");
-        registerStringType(Inet6Address.class, "ipv6");
-
-        Stream.of(Boolean.class, boolean.class)
-                .forEach(PrimitiveSchemaDefinitionProvider::registerBoolean);
-
-        Stream.of(Integer.class, int.class)
-                .forEach(javaType -> registerIntegerType(javaType, "int32"));
-        Stream.of(Long.class, long.class)
-                .forEach(javaType -> registerIntegerType(javaType, "int64"));
-        Stream.of(BigInteger.class, Short.class, short.class)
-                .forEach(javaType -> registerIntegerType(javaType, null));
-
-        Stream.of(Double.class, double.class)
-                .forEach(javaType -> registerNumberType(javaType, "double"));
-        Stream.of(Float.class, float.class)
-                .forEach(javaType -> registerNumberType(javaType, "float"));
-        Stream.of(BigDecimal.class, Number.class)
-                .forEach(javaType -> registerNumberType(javaType, null));
+    PrimitiveSchemaDefinitionProvider(TypeLoader loader) {
+        definitions = createDefinitions(loader);
     }
 
+    @Nullable
     @Override
-    public ObjectNode provide(@NonNull ResolvedType type, @NonNull SchemaGenerationContext context) {
+    public B provide(ResolvedType type, SchemaGenerationContext context) {
         final PrimitiveSchemaDefinition definition = definitionFor(type);
 
         if (definition == null) {
             return null;
         }
 
-        final ObjectNode schema = context.createSchema(definition.schemaType());
+        final B schema = context.createSchema(definition.schemaType());
 
         if (definition.format != null) {
-            schema.put("format", definition.format());
+            if (schema instanceof StringSchema.Builder builder) {
+                builder.format(definition.format());
+            }
+            if (schema instanceof IntegerSchema.Builder builder) {
+                builder.format(definition.format());
+            }
+            if (schema instanceof NumberSchema.Builder builder) {
+                builder.format(definition.format());
+            }
         }
 
-        context.extractValueHints().ifPresent(examples -> schema.set("examples", examples));
+        context.extractValueHints().ifPresent(schema::examples);
 
         return schema;
     }
 
+    @Nullable
     private PrimitiveSchemaDefinition definitionFor(ResolvedType type) {
         // first find the definition by the exact type, if none found, try if it is a subtype of the given type
         return definitionFor(candidate -> candidate.equals(type.getErasedType()))
                 .or(() -> definitionFor(type::isInstanceOf))
+                .or(() -> definitionFor(it -> type.getTypeName().equals(it.getCanonicalName())))
                 .orElse(null);
     }
 
@@ -108,30 +78,101 @@ final class PrimitiveSchemaDefinitionProvider implements SchemaDefinitionProvide
                 .findFirst();
     }
 
-    static void registerStringType(Class<?> javaType) {
-        definitions.add(new PrimitiveSchemaDefinition(javaType, "string"));
+    static Set<PrimitiveSchemaDefinition> createDefinitions(TypeLoader loader) {
+        final Set<PrimitiveSchemaDefinition> definitions = new LinkedHashSet<>();
+
+        Stream.of(
+                String.class, Character.class, char.class, CharSequence.class,
+                Byte.class, byte.class, InetAddress.class, Class.class
+        ).forEach(javaType -> definitions.add(
+                PrimitiveSchemaDefinition.string(loader, javaType)
+        ));
+
+        Stream.of(URI.class, URL.class, File.class, Path.class).forEach(javaType -> definitions.add(
+                PrimitiveSchemaDefinition.string(loader, javaType, "uri")
+        ));
+
+        /* Java time */
+        definitions.add(PrimitiveSchemaDefinition.string(loader, LocalDate.class, "date"));
+        Stream.of(LocalDateTime.class, ZonedDateTime.class, OffsetDateTime.class, Instant.class, Date.class, Calendar.class)
+                .forEach(javaType -> definitions.add(
+                        PrimitiveSchemaDefinition.string(loader, javaType, "date-time")
+                ));
+        Stream.of(LocalTime.class, OffsetTime.class)
+                .forEach(javaType -> definitions.add(
+                        PrimitiveSchemaDefinition.string(loader, javaType, "time")
+                ));
+        Stream.of(Duration.class, Period.class)
+                .forEach(javaType -> definitions.add(
+                        PrimitiveSchemaDefinition.string(loader, javaType, "duration")
+                ));
+
+        /* Custom string type formats */
+        definitions.add(PrimitiveSchemaDefinition.string(loader, UUID.class, "uuid"));
+        definitions.add(PrimitiveSchemaDefinition.string(loader, Charset.class, "charset"));
+        definitions.add(PrimitiveSchemaDefinition.string(loader, ZoneId.class, "time-zone"));
+        definitions.add(PrimitiveSchemaDefinition.string(loader, TimeZone.class, "time-zone"));
+        definitions.add(PrimitiveSchemaDefinition.string(loader, Locale.class, "language"));
+        definitions.add(PrimitiveSchemaDefinition.string(loader, Resource.class, "resource"));
+        definitions.add(PrimitiveSchemaDefinition.string(loader, MimeType.class, "mime-type"));
+        definitions.add(PrimitiveSchemaDefinition.string(loader, DataSize.class, "data-size"));
+        definitions.add(PrimitiveSchemaDefinition.string(loader, Inet4Address.class, "ipv4"));
+        definitions.add(PrimitiveSchemaDefinition.string(loader, Inet6Address.class, "ipv6"));
+
+        Stream.of(Boolean.class, boolean.class).forEach(javaType -> definitions.add(
+                PrimitiveSchemaDefinition.of(loader, javaType, JsonSchemaType.BOOLEAN)
+        ));
+
+        Stream.of(Integer.class, int.class).forEach(javaType -> definitions.add(
+                PrimitiveSchemaDefinition.integer(loader, javaType, "int32")
+        ));
+        Stream.of(Long.class, long.class).forEach(javaType -> definitions.add(
+                PrimitiveSchemaDefinition.integer(loader, javaType, "int64")
+        ));
+        Stream.of(BigInteger.class, Short.class, short.class).forEach(javaType -> definitions.add(
+                PrimitiveSchemaDefinition.integer(loader, javaType, null)
+        ));
+
+        Stream.of(Double.class, double.class).forEach(javaType -> definitions.add(
+                PrimitiveSchemaDefinition.number(loader, javaType, "double")
+        ));
+        Stream.of(Float.class, float.class).forEach(javaType -> definitions.add(
+                PrimitiveSchemaDefinition.number(loader, javaType, "float")
+        ));
+        Stream.of(BigDecimal.class, Number.class).forEach(javaType -> definitions.add(
+                PrimitiveSchemaDefinition.number(loader, javaType, null)
+        ));
+        return Collections.unmodifiableSet(definitions);
     }
 
-    static void registerStringType(Class<?> javaType, String format) {
-        definitions.add(new PrimitiveSchemaDefinition(javaType, "string", format));
-    }
+    record PrimitiveSchemaDefinition(Class<?> javaType, JsonSchemaType schemaType, @Nullable String format) {
 
-    static void registerIntegerType(Class<?> javaType, String format) {
-        definitions.add(new PrimitiveSchemaDefinition(javaType, "integer", format));
-    }
+        static PrimitiveSchemaDefinition string(TypeLoader loader, Class<?> javaType) {
+            return of(loader, javaType, JsonSchemaType.STRING);
+        }
 
-    static void registerNumberType(Class<?> javaType, String format) {
-        definitions.add(new PrimitiveSchemaDefinition(javaType, "number", format));
-    }
+        static PrimitiveSchemaDefinition string(TypeLoader loader, Class<?> javaType, @Nullable String format) {
+            return of(loader, javaType, JsonSchemaType.STRING, format);
+        }
 
-    static void registerBoolean(Class<?> javaType) {
-        definitions.add(new PrimitiveSchemaDefinition(javaType, "boolean"));
-    }
+        static PrimitiveSchemaDefinition integer(TypeLoader loader, Class<?> javaType, @Nullable String format) {
+            return of(loader, javaType, JsonSchemaType.INTEGER, format);
+        }
 
-    record PrimitiveSchemaDefinition(Class<?> javaType, String schemaType, String format) {
+        static PrimitiveSchemaDefinition number(TypeLoader loader, Class<?> javaType, @Nullable String format) {
+            return of(loader, javaType, JsonSchemaType.NUMBER, format);
+        }
 
-        PrimitiveSchemaDefinition(Class<?> javaType, String schemaType) {
-            this(javaType, schemaType, null);
+        static PrimitiveSchemaDefinition of(TypeLoader loader, Class<?> javaType, JsonSchemaType schemaType) {
+            return of(loader, javaType, schemaType, null);
+        }
+
+        static PrimitiveSchemaDefinition of(TypeLoader loader, Class<?> javaType, JsonSchemaType schemaType, @Nullable String format) {
+            try {
+                return new PrimitiveSchemaDefinition(loader.load(javaType), schemaType, format);
+            } catch (ClassNotFoundException e) {
+                return new PrimitiveSchemaDefinition(javaType, schemaType, format);
+            }
         }
     }
 }

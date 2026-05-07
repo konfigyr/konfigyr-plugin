@@ -1,6 +1,5 @@
 package com.konfigyr.test;
 
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
 import com.github.tomakehurst.wiremock.junit.Stubbing;
 import com.github.tomakehurst.wiremock.matching.UrlPattern;
@@ -11,6 +10,7 @@ import com.konfigyr.artifactory.ArtifactMetadata;
 import com.konfigyr.artifactory.ReleaseState;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
+import tools.jackson.databind.node.JsonNodeFactory;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -139,10 +139,92 @@ public final class StubFactories {
     @NonNull
     public StubMapping manifestResponseFor(@NonNull ArtifactoryConfiguration configuration,
                                            @NonNull ResponseDefinitionBuilder response) {
-        final String path = "/namespaces/" + configuration.namespace() + "/" + configuration.service() + "/manifest";
+        final String path = "/namespaces/" + configuration.namespace() + "/services/" + configuration.service() + "/manifest";
 
         return stubbing.stubFor(
                 get(urlPathEqualTo(path))
+                        .withHeader("Authorization", matching("^Bearer\\s+([a-zA-Z0-9-._~+/]+=*)$"))
+                        .willReturn(response.withHeader("Content-Type", "application/json"))
+        );
+    }
+
+    /**
+     * Creates an Artifact Release exist check mapping.
+     *
+     * @param artifact the artifact for which the release is retrieved
+     * @param exists {@literal true} if the release exists, {@literal false} otherwise
+     * @return get artifact release check stub mapping
+     */
+    @NonNull
+    public StubMapping getReleaseExistsResponseFor(@NonNull Artifact artifact, boolean exists) {
+        final String path = "/artifacts/" + artifact.groupId() + "/" + artifact.artifactId() + "/" + artifact.version();
+
+        return getReleaseExistsResponseFor(urlPathEqualTo(path), exists);
+    }
+
+    /**
+     * Creates an Artifact Release exist check mapping.
+     *
+     * @param url the url pattern to be matched
+     * @param exists {@literal true} if the release exists, {@literal false} otherwise
+     * @return get artifact release check stub mapping
+     */
+    @NonNull
+    public StubMapping getReleaseExistsResponseFor(@NonNull UrlPattern url, boolean exists) {
+        return getReleaseExistsResponseFor(url, aResponse().withStatus(exists ? 200 : 404));
+    }
+
+    /**
+     * Creates an Artifact Release exist check mapping.
+     *
+     * @param url the url pattern to be matched
+     * @param response the response builder
+     * @return get artifact release check stub mapping
+     */
+    @NonNull
+    public StubMapping getReleaseExistsResponseFor(@NonNull UrlPattern url, ResponseDefinitionBuilder response) {
+        return stubbing.stubFor(
+                head(url)
+                        .withHeader("Authorization", matching("^Bearer\\s+([a-zA-Z0-9-._~+/]+=*)$"))
+                        .willReturn(response)
+        );
+    }
+
+    /**
+     * Creates a Service publish mapping with a custom response.
+     *
+     * @param configuration the client configuration
+     * @param responseLocation response location
+     * @return service publish stub mapping
+     */
+    @NonNull
+    public StubMapping publishResponseFor(@NonNull ArtifactoryConfiguration configuration,
+                                          @NonNull String responseLocation) {
+        final String response;
+
+        try {
+            response = ResourceUtils.readResource(responseLocation);
+        } catch (IOException ex) {
+            throw new IllegalStateException("Could not read manifest publish response at: " + responseLocation, ex);
+        }
+
+        return publishResponseFor(configuration, jsonResponse(response, 200));
+    }
+
+    /**
+     * Creates a Service publish mapping with a custom response definition.
+     *
+     * @param configuration the client configuration
+     * @param response response definition
+     * @return service publish stub mapping
+     */
+    @NonNull
+    public StubMapping publishResponseFor(@NonNull ArtifactoryConfiguration configuration,
+                                           @NonNull ResponseDefinitionBuilder response) {
+        final String path = "/namespaces/" + configuration.namespace() + "/services/" + configuration.service() + "/manifest";
+
+        return stubbing.stubFor(
+                post(urlPathEqualTo(path))
                         .withHeader("Authorization", matching("^Bearer\\s+([a-zA-Z0-9-._~+/]+=*)$"))
                         .willReturn(response.withHeader("Content-Type", "application/json"))
         );
@@ -168,7 +250,7 @@ public final class StubFactories {
                 .put("state", state.name())
                 .put("checksum", "checksum")
                 .putPOJO("errors", Collections.emptyList())
-                .put("releaseDate", Instant.now().toString())
+                .put("releasedAt", Instant.now().toString())
                 .toPrettyString();
 
         return getReleaseResponseFor(artifact, jsonResponse(json, 200));
@@ -245,7 +327,7 @@ public final class StubFactories {
                 .put("state", state.name())
                 .put("checksum", metadata.checksum())
                 .putPOJO("errors", Collections.emptyList())
-                .put("releaseDate", Instant.now().toString())
+                .put("releasedAt", Instant.now().toString())
                 .toPrettyString();
 
         return createReleaseResponseFor(metadata, jsonResponse(json, 200));
