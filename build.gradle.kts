@@ -1,5 +1,6 @@
 plugins {
     id("idea")
+    id("jacoco")
     id("java-library")
 
     alias(libs.plugins.lombok) apply false
@@ -7,6 +8,7 @@ plugins {
 
 subprojects {
     apply(plugin = "idea")
+    apply(plugin = "jacoco")
     apply(plugin = "java-library")
     apply(plugin = "io.freefair.lombok")
 
@@ -39,5 +41,18 @@ subprojects {
 
     tasks.test {
         useJUnitPlatform()
+    }
+
+    tasks.jacocoTestReport {
+        reports {
+            xml.required = true
+            html.required = false
+        }
+
+        dependsOn(tasks.test)
+    }
+
+    tasks.check {
+        finalizedBy(tasks.jacocoTestReport)
     }
 }
