@@ -1,0 +1,34 @@
+coverage:
+  round: nearest
+  status:
+    # Commits pushed to the main branch should not make the overall project coverage decrease by more than 5%
+    project:
+      default:
+        target: auto
+        threshold: 5%
+
+    # Be more lenient when with coverage thresholds for PRs
+    patch:
+      default:
+        target: auto
+        threshold: 10%
+
+# Ignore the test application and plugin test modules
+ignore:
+  - "konfigyr-plugin-test"
+  - "konfigyr-test-application"
+
+component_management:
+  default_rules:
+    statuses:
+      - type: project
+        target: auto
+  individual_components:
+    - component_id: konfigyr-plugin-core
+      name: Core
+      paths:
+        - konfigyr-plugin-core/**
+    - component_id: konfigyr-plugin-gradle
+      name: Gradle
+      paths:
+        - konfigyr-plugin-gradle/**
