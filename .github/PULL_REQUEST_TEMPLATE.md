@@ -1,17 +1,21 @@
-### All Submissions:
+## Summary
 
-* [ ] Have you followed the guidelines in our Contributing document?
-* [ ] Have you checked to ensure there aren't other open [Pull Requests](../../../pulls) for the same update/change?
+<!-- Describe what this PR does and why. Link to the relevant issue if one exists. -->
 
-<!-- You can erase any parts of this template not applicable to your Pull Request. -->
+Closes #
 
-### New Feature Submissions:
+## Type of change
 
-1. [ ] Does your submission pass tests?
-2. [ ] Have you lint your code locally prior to submission?
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Improvement to an existing feature
+- [ ] Documentation update
+- [ ] Build / CI change
 
-### Changes to Core Features:
+## Checklist
 
-* [ ] Have you added an explanation of what your changes do and why you'd like us to include them?
-* [ ] Have you written new tests for your core changes, as applicable?
-* [ ] Have you successfully ran tests with your changes locally?
+- [ ] I have read [CONTRIBUTING.md](../CONTRIBUTING.md)
+- [ ] There are no other open pull requests for this change
+- [ ] New or updated tests cover my changes
+- [ ] All tests pass locally (`./gradlew check`)
+- [ ] My changes do not introduce new compiler warnings

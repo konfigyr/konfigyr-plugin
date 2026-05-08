@@ -1,11 +1,11 @@
 plugins {
     id 'java'
-    id 'com.konfigyr' apply(false)
+    id 'com.konfigyr.publish-manifest' apply(false)
 }
 
 subprojects {
     apply plugin: 'java'
-    apply plugin: 'com.konfigyr'
+    apply plugin: 'com.konfigyr.publish-manifest'
 
     group = 'com.acme'
     version = '1.0.0'

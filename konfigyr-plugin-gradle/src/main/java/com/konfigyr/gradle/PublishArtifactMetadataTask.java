@@ -3,7 +3,6 @@ package com.konfigyr.gradle;
 import com.konfigyr.artifactory.ArtifactMetadata;
 import com.konfigyr.artifactory.Manifest;
 import org.gradle.api.DefaultTask;
-import org.gradle.api.Project;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.Property;
@@ -91,11 +90,10 @@ public abstract class PublishArtifactMetadataTask extends DefaultTask {
 
     @TaskAction
     void publishArtifactMetadata() throws IOException {
-        final Project project = getProject();
         final ArtifactoryService service = getService().get();
         final WorkQueue queue = getWorkerExecutor().noIsolation();
 
-        getLogger().debug("Attempting to download the Service Manifest for Gradle project {}", project.getName());
+        getLogger().debug("Attempting to download the Service Manifest...");
 
         // Retrieve the current service manifest that would be used to check if
         // an artifact metadata should be published to the artifactory or not

@@ -109,6 +109,9 @@ public abstract class GenerateArtifactMetadataTask extends DefaultTask {
         final ArtifactMetadata projectArtifact = createArtifactMetadataForCurrentProject();
 
         if (projectArtifact != null) {
+            getLogger().debug("Attempting to generate artifact metadata for current project: {}:{}:{}",
+                    projectArtifact.groupId(), projectArtifact.artifactId(), projectArtifact.version());
+
             locations.add(service.writeArtifactMetadata(projectArtifact, getOutput().get().getAsFile()));
         }
 
@@ -119,11 +122,16 @@ public abstract class GenerateArtifactMetadataTask extends DefaultTask {
                 return;
             }
 
+            getLogger().debug("Attempting to generate artifact metadata for dependency: {}:{}:{}",
+                    candidate.groupId(), candidate.artifactId(), candidate.version());
+
             // load the property descriptor metadata from the transformed artifact and
             // create the artifact metadata that should be later uploaded to the artifactory
             final ArtifactMetadata metadata = service.createArtifactMetadata(candidate, artifact.getFile());
             locations.add(service.writeArtifactMetadata(metadata, getOutput().get().getAsFile()));
         });
+
+        getLogger().debug("Generating artifact location manifest using: {}", locations);
 
         // store the artifact metadata locations in the manifest file
         Files.writeString(
