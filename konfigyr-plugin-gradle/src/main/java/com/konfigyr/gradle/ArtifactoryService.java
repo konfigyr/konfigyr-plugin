@@ -208,10 +208,8 @@ public abstract class ArtifactoryService implements BuildService<ArtifactoryServ
     public void publish(@NonNull Collection<? extends Artifact> artifacts) {
         final Manifest manifest = client.publish(artifacts);
 
-        if (logger.isLifecycleEnabled()) {
-            logger.lifecycle("Successfully published Manifest for service [id={}, name={}] with artifacts: {}",
-                    manifest.id(), manifest.name(), manifest.artifacts());
-        }
+        logger.info("Successfully published Manifest for service [id={}, name={}] with artifacts: {}",
+                manifest.id(), manifest.name(), manifest.artifacts());
     }
 
     /**

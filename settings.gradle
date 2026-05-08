@@ -1,5 +1,0 @@
-rootProject.name = 'konfigyr-plugin'
-include 'konfigyr-plugin-core'
-include 'konfigyr-plugin-gradle'
-include 'konfigyr-plugin-test'
-include 'konfigyr-test-application'

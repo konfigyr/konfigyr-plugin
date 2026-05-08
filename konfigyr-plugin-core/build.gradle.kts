@@ -1,7 +1,3 @@
-plugins {
-    id("maven-publish")
-}
-
 dependencies {
     api(libs.konfigyr.artifactory)
     api(libs.jackson.databind)
@@ -13,12 +9,4 @@ dependencies {
 
     testImplementation(project(":konfigyr-plugin-test"))
     testImplementation(project(":konfigyr-test-application"))
-}
-
-publishing {
-    publications {
-        create<MavenPublication>("konfigyr") {
-            from(components["java"])
-        }
-    }
 }

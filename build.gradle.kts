@@ -4,6 +4,9 @@ plugins {
     id("java-library")
 
     alias(libs.plugins.lombok) apply false
+    alias(libs.plugins.shadow) apply false
+    alias(libs.plugins.gradle.publish) apply false
+    alias(libs.plugins.gradle.compatibility) apply false
 }
 
 subprojects {
