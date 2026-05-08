@@ -53,7 +53,7 @@ class KonfigyrPluginTest extends AbstractWiremockTest {
     void assertPluginApplied() {
         Project project = ProjectBuilder.builder().build();
         project.getPluginManager().apply(JavaPlugin.class);
-        project.getPluginManager().apply("com.konfigyr");
+        project.getPluginManager().apply("com.konfigyr.publish-manifest");
 
         assertThat(project.getExtensions())
                 .isNotNull()
