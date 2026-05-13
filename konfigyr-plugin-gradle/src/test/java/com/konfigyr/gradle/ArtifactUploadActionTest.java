@@ -4,10 +4,9 @@ import com.konfigyr.artifactory.ArtifactMetadata;
 import com.konfigyr.test.AbstractWiremockTest;
 import lombok.RequiredArgsConstructor;
 import org.gradle.api.artifacts.PublishException;
-import org.gradle.api.internal.provider.DefaultPropertyFactory;
-import org.gradle.api.internal.provider.PropertyFactory;
-import org.gradle.api.internal.provider.PropertyHost;
+import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
+import org.gradle.testfixtures.ProjectBuilder;
 import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -59,18 +58,19 @@ class ArtifactUploadActionTest extends AbstractWiremockTest {
     @RequiredArgsConstructor
     private static final class Action extends ArtifactUploadAction {
 
-        private final PropertyFactory propertyFactory = new DefaultPropertyFactory(PropertyHost.NO_OP);
+        private static final ObjectFactory OBJECTS = ProjectBuilder.builder().build().getObjects();
+
         private final ArtifactoryService service;
         private final ArtifactMetadata artifact;
 
         @Override
         Property<@NonNull ArtifactoryService> getArtifactoryService() {
-            return propertyFactory.property(ArtifactoryService.class).value(service);
+            return OBJECTS.property(ArtifactoryService.class).value(service);
         }
 
         @Override
         public Parameters getParameters() {
-            return () -> propertyFactory.property(ArtifactMetadata.class).value(artifact);
+            return () -> OBJECTS.property(ArtifactMetadata.class).value(artifact);
         }
     }
 }

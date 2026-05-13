@@ -48,8 +48,8 @@ gradlePlugin {
 
 signing {
     useInMemoryPgpKeys(
-        System.getenv("GPG_SIGNING_KEY"),
-        System.getenv("GPG_SIGNING_SECRET")
+        providers.environmentVariable("GPG_SIGNING_KEY").orNull,
+        providers.environmentVariable("GPG_SIGNING_SECRET").orNull
     )
 }
 

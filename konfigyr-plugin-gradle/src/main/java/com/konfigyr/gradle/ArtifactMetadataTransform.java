@@ -1,10 +1,10 @@
 package com.konfigyr.gradle;
 
 import com.konfigyr.artifactory.PropertyDescriptor;
+import org.gradle.api.GradleException;
 import org.gradle.api.artifacts.transform.*;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemLocation;
-import org.gradle.api.internal.artifacts.transform.TransformException;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Property;
@@ -126,7 +126,7 @@ public abstract class ArtifactMetadataTransform implements TransformAction<Artif
 
             service.writePropertyDescriptorMetadata(candidates, classpath, output);
         } catch (Exception ex) {
-            throw new TransformException("Failed to generate Konfigyr property descriptor metadata for artifact: " +
+            throw new GradleException("Failed to generate Konfigyr property descriptor metadata for artifact: " +
                     artifact, ex);
         }
     }

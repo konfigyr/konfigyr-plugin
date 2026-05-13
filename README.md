@@ -117,11 +117,11 @@ Apply the plugin selectively and share the common configuration at the root:
 // root build.gradle.kts                                                                                                                                                                                                                              
 
 plugins {
-    id("com.konfigyr") version "1.0.0" apply false
+    id("com.konfigyr.publish-manifest") version "1.0.0" apply false
 }
 
 subprojects {
-    apply(plugin = "com.konfigyr")
+    apply(plugin = "com.konfigyr.publish-manifest")
 
     konfigyr {
         namespace = "acme-corp"

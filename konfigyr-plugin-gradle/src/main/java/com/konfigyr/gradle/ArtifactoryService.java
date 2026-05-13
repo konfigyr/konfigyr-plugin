@@ -6,7 +6,6 @@ import com.konfigyr.ArtifactoryClient;
 import com.konfigyr.ArtifactoryConfiguration;
 import com.konfigyr.DefaultArtifactoryClient;
 import com.konfigyr.artifactory.*;
-import lombok.extern.slf4j.Slf4j;
 import org.gradle.api.artifacts.PublishException;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
@@ -42,7 +41,6 @@ import java.util.stream.StreamSupport;
  * @since 1.0.0
  * @see ArtifactoryClient
  */
-@Slf4j
 public abstract class ArtifactoryService implements BuildService<ArtifactoryService.@NonNull Parameters> {
 
     private final Logger logger = Logging.getLogger(ArtifactoryService.class);
@@ -93,8 +91,18 @@ public abstract class ArtifactoryService implements BuildService<ArtifactoryServ
             Iterable<? extends Resource> metadata,
             Iterable<? extends File> classpath
     ) {
-        final ArtifactMetadataParser parser = createParser(classpath);
-        final List<PropertyDescriptor> descriptors =  parser.parse(metadata);
+        final URLClassLoader classLoader = createClassLoader(classpath);
+        final List<PropertyDescriptor> descriptors;
+
+        try {
+            descriptors = new ArtifactMetadataParser(classLoader).parse(metadata);
+        } finally {
+            try {
+                classLoader.close();
+            } catch (IOException ex) {
+                logger.warn("Failed to close artifact metadata class loader", ex);
+            }
+        }
 
         if (logger.isDebugEnabled()) {
             logger.debug("Successfully generated {} property descriptors", descriptors.size());
@@ -278,7 +286,7 @@ public abstract class ArtifactoryService implements BuildService<ArtifactoryServ
         return backOff.start();
     }
 
-    static ArtifactMetadataParser createParser(@NonNull Iterable<? extends File> files) {
+    static URLClassLoader createClassLoader(@NonNull Iterable<? extends File> files) {
         final URL[] classpath = StreamSupport.stream(files.spliterator(), false)
                 .map(file -> {
                     try {
@@ -290,7 +298,7 @@ public abstract class ArtifactoryService implements BuildService<ArtifactoryServ
                 .filter(Objects::nonNull)
                 .toArray(URL[]::new);
 
-        return new ArtifactMetadataParser(new URLClassLoader(classpath, ClassUtils.getDefaultClassLoader()));
+        return new URLClassLoader(classpath, ClassUtils.getDefaultClassLoader());
     }
 
     static String formatCoordinates(Artifact artifact, char joiner) {
