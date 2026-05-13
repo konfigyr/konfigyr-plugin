@@ -76,9 +76,7 @@ public final class TypeLoader {
     }
 
     @SuppressWarnings("unchecked")
-    private <T> Class<T> forName(String typeName, ClassLoader classLoader) throws ClassNotFoundException {
-        final String name = typeName.strip();
-
+    private <T> Class<T> forName(String name, ClassLoader classLoader) throws ClassNotFoundException {
         // primitive types: int, long, boolean, void, etc.
         final Class<?> primitive = PRIMITIVE_TYPES.get(name);
         if (primitive != null) {
