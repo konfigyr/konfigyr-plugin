@@ -6,6 +6,8 @@ import com.konfigyr.artifactory.PropertyDescriptor;
 import com.konfigyr.schema.JsonSchemaGenerator;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.configurationmetadata.ConfigurationMetadataProperty;
 import org.springframework.boot.configurationmetadata.ConfigurationMetadataRepository;
 import org.springframework.boot.configurationmetadata.ConfigurationMetadataRepositoryJsonBuilder;
@@ -15,6 +17,7 @@ import org.springframework.util.StringUtils;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
@@ -38,6 +41,8 @@ import java.util.stream.Collectors;
  * @since 1.0.0
  */
 public class ArtifactMetadataParser {
+
+    private static final Logger logger = LoggerFactory.getLogger(ArtifactMetadataParser.class);
 
     private final TypeNameResolver typeNameResolver;
     private final JsonSchemaGenerator jsonSchemaGenerator;
@@ -76,8 +81,8 @@ public class ArtifactMetadataParser {
         final ConfigurationMetadataRepositoryJsonBuilder builder = ConfigurationMetadataRepositoryJsonBuilder.create();
 
         metadata.forEach(resource -> {
-            try {
-                builder.withJsonResource(resource.getInputStream(), StandardCharsets.UTF_8);
+            try (InputStream is = resource.getInputStream()) {
+                builder.withJsonResource(is, StandardCharsets.UTF_8);
             } catch (FileNotFoundException e) {
                 throw new IllegalStateException("Could not find metadata file data for: " + resource.getFilename() , e);
             } catch (IOException e) {
@@ -100,6 +105,8 @@ public class ArtifactMetadataParser {
         ResolvedPropertyType type = typeNameResolver.resolve(metadata.getType());
 
         if (type == null) {
+            logger.debug("Could not resolve type '{}' for property '{}', falling back to string schema",
+                    metadata.getType(), metadata.getId());
             type = ResolvedPropertyType.STRING_TYPE;
         }
 

@@ -273,7 +273,7 @@ public abstract class ArtifactoryService implements BuildService<ArtifactoryServ
         if (release.state() == ReleaseState.RELEASED) {
             logger.lifecycle("Release has been successfully processed for Artifact({})", coordinates);
         } else {
-            logger.lifecycle("Could not process release for Artifact({}) with errors: {}", coordinates, release.errors());
+            logger.warn("Could not process release for Artifact({}) with errors: {}", coordinates, release.errors());
         }
     }
 

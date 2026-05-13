@@ -86,8 +86,6 @@ final class OAuthClientCredentialsProvider {
                 URLEncoder.encode(configuration.clientSecret(), StandardCharsets.UTF_8)
         );
 
-
-
         final HttpRequest request = HttpRequest.newBuilder()
                 .uri(configuration.tokenUri())
                 .header(HttpHeaders.ACCEPT, "application/json")
@@ -105,6 +103,10 @@ final class OAuthClientCredentialsProvider {
             response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
         } catch (IOException ex) {
             throw new UncheckedIOException("Error occurred while establishing connection for HTTP request: %s %s"
+                    .formatted(request.method(), request.uri()), ex);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("HTTP request was interrupted: %s %s"
                     .formatted(request.method(), request.uri()), ex);
         } catch (Exception ex) {
             throw new IllegalStateException("Unexpected error occurred while executing HTTP request: %s %s"
