@@ -1,5 +1,6 @@
 package com.konfigyr.test;
 
+import com.konfigyr.ArtifactMetadataResource;
 import org.jspecify.annotations.NonNull;
 import org.junit.platform.commons.function.Try;
 import org.springframework.core.io.DefaultResourceLoader;
@@ -40,7 +41,7 @@ public final class ResourceUtils {
     @NonNull
     public static Resource loadResource(String location) throws IOException {
         return Try.call(() -> loader.getResource(location))
-                .andThenTry(resource -> resource != null && resource.exists() ? resource : null)
+                .andThenTry(resource -> resource.exists() ? resource : null)
                 .getNonNullOrThrow(ex -> new IOException("Could not load resource from location: " + location, ex));
     }
 
@@ -60,21 +61,25 @@ public final class ResourceUtils {
     }
 
     /**
-     * Loads multiple {@link Resource}s from the specified locations.
+     * Loads multiple {@link ArtifactMetadataResource}s from the specified locations.
      * <p>
      * All resources are loaded using {@link #loadResource(String)} and returned as an
      * unmodifiable collection.
      *
      * @param locations the resource locations, cannot be {@literal null}
-     * @return an iterable of loaded resources, never {@literal null}
+     * @return an iterable of loaded artifact metadata resources, never {@literal null}
      * @throws IOException if any of the resources cannot be loaded or do not exist
      */
     @NonNull
-    public static Iterable<? extends Resource> loadResources(String... locations) throws IOException {
-        final List<Resource> resources = new ArrayList<>();
+    public static Iterable<? extends ArtifactMetadataResource> loadMetadata(String... locations) throws IOException {
+        final List<ArtifactMetadataResource> resources = new ArrayList<>();
 
         for (String location : locations) {
-            resources.add(loadResource(location));
+            final Resource resource = loadResource(location);
+            resources.add(ArtifactMetadataResource.of(
+                    resource.getURI().toString(),
+                    resource.getContentAsByteArray()
+            ));
         }
 
         return Collections.unmodifiableList(resources);

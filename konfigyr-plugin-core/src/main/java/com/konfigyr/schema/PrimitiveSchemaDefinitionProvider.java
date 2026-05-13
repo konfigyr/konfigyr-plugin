@@ -5,9 +5,6 @@ import com.konfigyr.TypeLoader;
 import com.konfigyr.artifactory.*;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
-import org.springframework.core.io.Resource;
-import org.springframework.util.MimeType;
-import org.springframework.util.unit.DataSize;
 
 import java.io.File;
 import java.math.BigDecimal;
@@ -113,9 +110,6 @@ final class PrimitiveSchemaDefinitionProvider<T extends JsonSchema, B extends Js
         definitions.add(PrimitiveSchemaDefinition.string(loader, ZoneId.class, "time-zone"));
         definitions.add(PrimitiveSchemaDefinition.string(loader, TimeZone.class, "time-zone"));
         definitions.add(PrimitiveSchemaDefinition.string(loader, Locale.class, "language"));
-        definitions.add(PrimitiveSchemaDefinition.string(loader, Resource.class, "resource"));
-        definitions.add(PrimitiveSchemaDefinition.string(loader, MimeType.class, "mime-type"));
-        definitions.add(PrimitiveSchemaDefinition.string(loader, DataSize.class, "data-size"));
         definitions.add(PrimitiveSchemaDefinition.string(loader, Inet4Address.class, "ipv4"));
         definitions.add(PrimitiveSchemaDefinition.string(loader, Inet6Address.class, "ipv6"));
 

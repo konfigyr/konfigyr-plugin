@@ -1,10 +1,7 @@
 package com.konfigyr.gradle;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.konfigyr.ArtifactMetadataParser;
-import com.konfigyr.ArtifactoryClient;
-import com.konfigyr.ArtifactoryConfiguration;
-import com.konfigyr.DefaultArtifactoryClient;
+import com.konfigyr.*;
 import com.konfigyr.artifactory.*;
 import org.gradle.api.artifacts.PublishException;
 import org.gradle.api.logging.Logger;
@@ -15,10 +12,6 @@ import org.gradle.api.services.BuildServiceParameters;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.NonNull;
-import org.springframework.core.io.Resource;
-import org.springframework.util.ClassUtils;
-import org.springframework.util.backoff.BackOffExecution;
-import org.springframework.util.backoff.ExponentialBackOff;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JavaType;
 import tools.jackson.databind.json.JsonMapper;
@@ -77,7 +70,8 @@ public abstract class ArtifactoryService implements BuildService<ArtifactoryServ
     }
 
     /**
-     * Attempts to parse the given collection of {@link Resource}s into a list of {@link PropertyDescriptor}s.
+     * Attempts to parse the given collection of {@link ArtifactMetadataResource}s into a
+     * list of {@link PropertyDescriptor}s.
      * <p>
      * This method would create a {@link ClassLoader} that can resolve the Java types to construct
      * the {@link com.konfigyr.artifactory.JsonSchema} for each property using the specified collection
@@ -88,7 +82,7 @@ public abstract class ArtifactoryService implements BuildService<ArtifactoryServ
      * @return list of parsed {@link PropertyDescriptor}, never {@literal null}.
      */
     public List<PropertyDescriptor> parsePropertyDescriptors(
-            Iterable<? extends Resource> metadata,
+            Iterable<? extends ArtifactMetadataResource> metadata,
             Iterable<? extends File> classpath
     ) {
         final URLClassLoader classLoader = createClassLoader(classpath);
@@ -113,7 +107,7 @@ public abstract class ArtifactoryService implements BuildService<ArtifactoryServ
 
     /**
      * Generates and writes {@link PropertyDescriptor} metadata extracted from the given collection
-     * of {@link Resource}s to the given target {@link File}.
+     * of {@link ArtifactMetadataResource}s to the given target {@link File}.
      * <p>
      * This method would create a {@link ClassLoader} that can resolve the Java types to construct
      * the {@link com.konfigyr.artifactory.JsonSchema} for each property using the specified collection
@@ -124,7 +118,7 @@ public abstract class ArtifactoryService implements BuildService<ArtifactoryServ
      * @param target the target file where the metadata should be written, cannot be {@literal null}.
      */
     public void writePropertyDescriptorMetadata(
-            Iterable<? extends Resource> metadata,
+            Iterable<? extends ArtifactMetadataResource> metadata,
             Iterable<? extends File> classpath,
             File target
     ) {
@@ -248,7 +242,7 @@ public abstract class ArtifactoryService implements BuildService<ArtifactoryServ
             throw new PublishException("Failed to upload Artifact(%s) to Artifactory".formatted(coordinates), ex);
         }
 
-        final BackOffExecution execution = createBackOffExecution(getParameters());
+        final BackOffExecution execution = new BackOffExecution(getParameters());
 
         while (release.state() == ReleaseState.PENDING) {
             final long timeout = execution.nextBackOff();
@@ -277,15 +271,6 @@ public abstract class ArtifactoryService implements BuildService<ArtifactoryServ
         }
     }
 
-    static BackOffExecution createBackOffExecution(ArtifactoryService.Parameters parameters) {
-        final ExponentialBackOff backOff = new ExponentialBackOff();
-        backOff.setInitialInterval(parameters.getInterval().get().toMillis());
-        backOff.setMaxElapsedTime(parameters.getTimeout().get().toMillis());
-        backOff.setMultiplier(1.75);
-        backOff.setMaxAttempts(Integer.MAX_VALUE);
-        return backOff.start();
-    }
-
     static URLClassLoader createClassLoader(@NonNull Iterable<? extends File> files) {
         final URL[] classpath = StreamSupport.stream(files.spliterator(), false)
                 .map(file -> {
@@ -298,7 +283,7 @@ public abstract class ArtifactoryService implements BuildService<ArtifactoryServ
                 .filter(Objects::nonNull)
                 .toArray(URL[]::new);
 
-        return new URLClassLoader(classpath, ClassUtils.getDefaultClassLoader());
+        return new URLClassLoader(classpath, ClassLoader.getSystemClassLoader());
     }
 
     static String formatCoordinates(Artifact artifact, char joiner) {
@@ -313,6 +298,35 @@ public abstract class ArtifactoryService implements BuildService<ArtifactoryServ
 
         Property<@NonNull Duration> getInterval();
 
+    }
+
+    static final class BackOffExecution {
+        static final long STOP = -1;
+
+        private final long interval;
+        private final long timeout;
+
+        private long elapsed = 0;
+        private int attempts = 0;
+
+        BackOffExecution(Parameters parameters) {
+            this(parameters.getInterval().get().toMillis(), parameters.getTimeout().get().toMillis());
+        }
+
+        BackOffExecution(long interval, long timeout) {
+            this.interval = interval;
+            this.timeout = timeout;
+        }
+
+        long nextBackOff() {
+            // we reached the max attempts, or the timeout is exceeded, stop polling...
+            if (elapsed >= timeout || attempts >= 60) {
+                return STOP;
+            }
+            attempts++;
+            elapsed += interval;
+            return interval;
+        }
     }
 
 }

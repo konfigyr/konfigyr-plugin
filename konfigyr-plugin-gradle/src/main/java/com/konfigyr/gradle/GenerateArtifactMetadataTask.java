@@ -1,5 +1,6 @@
 package com.konfigyr.gradle;
 
+import com.konfigyr.ArtifactMetadataResource;
 import com.konfigyr.artifactory.Artifact;
 import com.konfigyr.artifactory.ArtifactMetadata;
 import org.gradle.api.DefaultTask;
@@ -14,8 +15,6 @@ import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.*;
 import org.gradle.internal.component.local.model.TransformedComponentFileArtifactIdentifier;
 import org.jspecify.annotations.Nullable;
-import org.springframework.core.io.FileSystemResource;
-import org.springframework.core.io.Resource;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -170,11 +169,11 @@ public abstract class GenerateArtifactMetadataTask extends DefaultTask {
 
     @Nullable
     private ArtifactMetadata createArtifactMetadataForCurrentProject() {
-        final List<Resource> candidates = new ArrayList<>();
+        final List<ArtifactMetadataResource> candidates = new ArrayList<>();
 
         getClasspath().getAsFileTree().matching(spec -> spec.include(
                 ArtifactMetadataTransform.METADATA_PATHS
-        )).forEach(file -> candidates.add(new FileSystemResource(file)));
+        )).forEach(file -> candidates.add(ArtifactMetadataResource.of(file)));
 
         if (candidates.isEmpty()) {
             return null;

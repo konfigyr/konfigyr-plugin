@@ -2,6 +2,7 @@ package com.konfigyr;
 
 import com.fasterxml.classmate.ResolvedType;
 import com.konfigyr.artifactory.Artifact;
+import com.konfigyr.test.TestApplicationProperties;
 import org.assertj.core.api.ObjectAssert;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,15 @@ class TypeNameResolverTest {
     void resolvePrimitiveClassNames(String name, Class<?> type) {
         assertThatResolvedType(name)
                 .satisfies(isTypeOf(type))
+                .satisfies(hasNoTypeParameters());
+    }
+
+    @MethodSource("primitive")
+    @DisplayName("should resolve primitive array types")
+    @ParameterizedTest(name = "should resolve {1} type for: {0}")
+    void resolvePrimitiveArrayTypes(String name, Class<?> type) {
+        assertThatResolvedType(name + "[]")
+                .satisfies(isTypeOf(type.arrayType()))
                 .satisfies(hasNoTypeParameters());
     }
 
@@ -104,6 +114,15 @@ class TypeNameResolverTest {
                 Arguments.of("java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
                         Map.class, String.class, List.class)
         );
+    }
+
+    @Test
+    @DisplayName("should resolve inner types by dot")
+    void resolveInnerTypes() {
+        assertThatResolvedType("com.konfigyr.test.TestApplicationProperties.Nested")
+                .satisfies(isTypeOf(TestApplicationProperties.Nested.class))
+                .satisfies(hasNoTypeParameters())
+                .returns("com.konfigyr.test.TestApplicationProperties$Nested", ResolvedPropertyType::getTypeName);
     }
 
     @Test

@@ -11,7 +11,6 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -57,7 +56,7 @@ final class TypeNameResolver {
 
     @Nullable
     synchronized ResolvedPropertyType resolve(String className) {
-        if (!StringUtils.hasText(className)) {
+        if (className == null || className.isBlank()) {
             return null;
         }
 

@@ -13,7 +13,6 @@ import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.configurationmetadata.ConfigurationMetadataProperty;
-import org.springframework.util.Assert;
 
 import java.lang.reflect.Field;
 import java.util.*;
@@ -38,6 +37,7 @@ final class DefaultJsonSchemaGenerator implements JsonSchemaGenerator {
         this.typeResolver = typeResolver;
         this.providers = List.of(
                 new PrimitiveSchemaDefinitionProvider<>(typeLoader),
+                new SpringSchemaDefinitionProvider<>(typeLoader),
                 new EnumSchemaDefinitionProvider()
         );
     }
@@ -45,9 +45,6 @@ final class DefaultJsonSchemaGenerator implements JsonSchemaGenerator {
     @NonNull
     @Override
     public JsonSchema generateSchema(@NonNull ResolvedType type, @NonNull ConfigurationMetadataProperty metadata) {
-        Assert.notNull(type, "Type must not be null");
-        Assert.notNull(metadata, "Configuration metadata must not be null");
-
         return generateSchema(type, new SchemaGenerationContext(metadata, typeResolver, typeLoader), new HashSet<>());
     }
 

@@ -1,7 +1,6 @@
 dependencies {
     api(libs.konfigyr.artifactory)
     api(libs.jackson.databind)
-    api(libs.spring.core)
     api(libs.spring.configuration.metadata)
 
     implementation(libs.classmate)

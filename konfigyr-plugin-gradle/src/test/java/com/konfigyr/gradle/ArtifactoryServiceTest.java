@@ -157,6 +157,40 @@ class ArtifactoryServiceTest extends AbstractWiremockTest {
         verify(client, atLeast(3)).getRelease(artifact);
     }
 
+    @Test
+    @DisplayName("backoff execution should stop when max number of attempts is made")
+    void stopBackoffExecutionWhenMaxAttemptsReached() {
+        final var backoff = new ArtifactoryService.BackOffExecution(100, Duration.ofMinutes(5).toMillis());
+
+        for (int i = 0; i < 60; i++) {
+            assertThat(backoff.nextBackOff())
+                    .as("the next backoff interval must be fixed and equal to 100ms")
+                    .isEqualTo(100);
+        }
+
+        assertThat(backoff.nextBackOff())
+                .as("the next backoff interval must be STOP")
+                .isEqualTo(ArtifactoryService.BackOffExecution.STOP);
+
+    }
+
+    @Test
+    @DisplayName("backoff execution should stop when timeout period is reached")
+    void stopBackoffExecutionWhenTimeoutReached() {
+        final var backoff = new ArtifactoryService.BackOffExecution(100, 500);
+
+        for (int i = 0; i < 5; i++) {
+            assertThat(backoff.nextBackOff())
+                    .as("the next backoff interval must be fixed and equal to 100ms")
+                    .isEqualTo(100);
+        }
+
+        assertThat(backoff.nextBackOff())
+                .as("the next backoff interval must be STOP")
+                .isEqualTo(ArtifactoryService.BackOffExecution.STOP);
+
+    }
+
     private static final class Service extends ArtifactoryService {
 
         private static final ObjectFactory OBJECTS = ProjectBuilder.builder().build().getObjects();

@@ -2,12 +2,12 @@ package com.konfigyr;
 
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
-import org.springframework.util.Assert;
 
 import java.io.Serial;
 import java.io.Serializable;
 import java.net.URI;
 import java.time.Duration;
+import java.util.Objects;
 
 /**
  * Configuration for connecting to the Konfigyr Artifactory REST API.
@@ -46,12 +46,12 @@ public record ArtifactoryConfiguration(
     public static final URI DEFAULT_TOKEN_URI = URI.create("https://id.konfigyr.com/oauth/token");
 
     public ArtifactoryConfiguration {
-        Assert.notNull(host, "host must not be null");
-        Assert.hasText(clientId, "clientId must not be blank");
-        Assert.hasText(clientSecret, "clientSecret must not be blank");
-        Assert.notNull(tokenUri, "tokenUri must not be null");
-        Assert.notNull(namespace, "namespace must not be null");
-        Assert.notNull(service, "service must not be null");
+        Objects.requireNonNull(host, "host must not be null");
+        Objects.requireNonNull(clientId, "clientId must not be blank");
+        Objects.requireNonNull(clientSecret, "clientSecret must not be blank");
+        Objects.requireNonNull(tokenUri, "tokenUri must not be null");
+        Objects.requireNonNull(namespace, "namespace must not be null");
+        Objects.requireNonNull(service, "service must not be null");
 
         if (connectTimeout == null) {
             connectTimeout = Duration.ofSeconds(10);
