@@ -5,12 +5,10 @@ import com.konfigyr.ArtifactoryConfiguration;
 import com.konfigyr.HttpResponseException;
 import com.konfigyr.artifactory.*;
 import com.konfigyr.test.AbstractWiremockTest;
-import lombok.RequiredArgsConstructor;
 import org.gradle.api.artifacts.PublishException;
-import org.gradle.api.internal.provider.DefaultPropertyFactory;
-import org.gradle.api.internal.provider.PropertyFactory;
-import org.gradle.api.internal.provider.PropertyHost;
+import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
+import org.gradle.testfixtures.ProjectBuilder;
 import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.BeforeEach;
@@ -159,10 +157,43 @@ class ArtifactoryServiceTest extends AbstractWiremockTest {
         verify(client, atLeast(3)).getRelease(artifact);
     }
 
-    @RequiredArgsConstructor
+    @Test
+    @DisplayName("backoff execution should stop when max number of attempts is made")
+    void stopBackoffExecutionWhenMaxAttemptsReached() {
+        final var backoff = new ArtifactoryService.BackOffExecution(100, Duration.ofMinutes(5).toMillis());
+
+        for (int i = 0; i < 60; i++) {
+            assertThat(backoff.nextBackOff())
+                    .as("the next backoff interval must be fixed and equal to 100ms")
+                    .isEqualTo(100);
+        }
+
+        assertThat(backoff.nextBackOff())
+                .as("the next backoff interval must be STOP")
+                .isEqualTo(ArtifactoryService.BackOffExecution.STOP);
+
+    }
+
+    @Test
+    @DisplayName("backoff execution should stop when timeout period is reached")
+    void stopBackoffExecutionWhenTimeoutReached() {
+        final var backoff = new ArtifactoryService.BackOffExecution(100, 500);
+
+        for (int i = 0; i < 5; i++) {
+            assertThat(backoff.nextBackOff())
+                    .as("the next backoff interval must be fixed and equal to 100ms")
+                    .isEqualTo(100);
+        }
+
+        assertThat(backoff.nextBackOff())
+                .as("the next backoff interval must be STOP")
+                .isEqualTo(ArtifactoryService.BackOffExecution.STOP);
+
+    }
+
     private static final class Service extends ArtifactoryService {
 
-        private final PropertyFactory propertyFactory = new DefaultPropertyFactory(PropertyHost.NO_OP);
+        private static final ObjectFactory OBJECTS = ProjectBuilder.builder().build().getObjects();
 
         private Service(ArtifactoryClient client) {
             super(client);
@@ -173,17 +204,17 @@ class ArtifactoryServiceTest extends AbstractWiremockTest {
             return new Parameters() {
                 @Override
                 public Property<@NotNull ArtifactoryConfiguration> getConfiguration() {
-                    return propertyFactory.property(ArtifactoryConfiguration.class).unset();
+                    return OBJECTS.property(ArtifactoryConfiguration.class);
                 }
 
                 @Override
                 public Property<@NonNull Duration> getTimeout() {
-                    return propertyFactory.property(Duration.class).value(Duration.ofSeconds(1));
+                    return OBJECTS.property(Duration.class).value(Duration.ofSeconds(1));
                 }
 
                 @Override
                 public Property<@NonNull Duration> getInterval() {
-                    return propertyFactory.property(Duration.class).value(Duration.ofMillis(200));
+                    return OBJECTS.property(Duration.class).value(Duration.ofMillis(200));
                 }
             };
         }

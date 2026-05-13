@@ -4,7 +4,6 @@ import com.google.common.net.HttpHeaders;
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.util.Assert;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -18,6 +17,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
@@ -52,15 +52,10 @@ final class OAuthClientCredentialsProvider {
     }
 
     OAuthClientCredentialsProvider(Logger logger, JsonMapper mapper, HttpClient httpClient, ArtifactoryConfiguration configuration) {
-        Assert.notNull(logger, "Logger must not be null");
-        Assert.notNull(mapper, "JSON mapper must not be null");
-        Assert.notNull(httpClient, "HTTP Client must not be null");
-        Assert.notNull(configuration, "Artifactory client configuration must not be null");
-
-        this.logger = logger;
-        this.mapper = mapper;
-        this.httpClient = httpClient;
-        this.configuration = configuration;
+        this.logger = Objects.requireNonNull(logger, "Logger must not be null");
+        this.mapper = Objects.requireNonNull(mapper, "JSON mapper must not be null");
+        this.httpClient = Objects.requireNonNull(httpClient, "HTTP Client must not be null");
+        this.configuration = Objects.requireNonNull(configuration, "Artifactory client configuration must not be null");
     }
 
     /**
@@ -86,8 +81,6 @@ final class OAuthClientCredentialsProvider {
                 URLEncoder.encode(configuration.clientSecret(), StandardCharsets.UTF_8)
         );
 
-
-
         final HttpRequest request = HttpRequest.newBuilder()
                 .uri(configuration.tokenUri())
                 .header(HttpHeaders.ACCEPT, "application/json")
@@ -105,6 +98,10 @@ final class OAuthClientCredentialsProvider {
             response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
         } catch (IOException ex) {
             throw new UncheckedIOException("Error occurred while establishing connection for HTTP request: %s %s"
+                    .formatted(request.method(), request.uri()), ex);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("HTTP request was interrupted: %s %s"
                     .formatted(request.method(), request.uri()), ex);
         } catch (Exception ex) {
             throw new IllegalStateException("Unexpected error occurred while executing HTTP request: %s %s"

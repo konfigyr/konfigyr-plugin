@@ -3,8 +3,7 @@ package com.konfigyr;
 import com.fasterxml.classmate.ResolvedType;
 import com.fasterxml.classmate.TypeResolver;
 import lombok.Value;
-import org.jspecify.annotations.NonNull;
-import org.springframework.util.Assert;
+import org.jspecify.annotations.NullMarked;
 
 import java.io.Serial;
 import java.io.Serializable;
@@ -21,6 +20,7 @@ import java.util.List;
  * @see org.springframework.boot.configurationmetadata.ConfigurationMetadataProperty
  **/
 @Value
+@NullMarked
 public class ResolvedPropertyType implements Serializable {
 
     @Serial
@@ -55,9 +55,6 @@ public class ResolvedPropertyType implements Serializable {
      * @param parameters the list of generic type parameters, cannot be {@literal null}.
      */
     public ResolvedPropertyType(Class<?> type, List<ResolvedPropertyType> parameters) {
-        Assert.notNull(type, "Type must not be null");
-        Assert.notNull(parameters, "Type parameters must not be null");
-
         this.type = resolve(type, parameters);
         this.parameters = Collections.unmodifiableList(parameters);
     }
@@ -67,7 +64,6 @@ public class ResolvedPropertyType implements Serializable {
      *
      * @return the type name, never {@literal null}.
      */
-    @NonNull
     public String getTypeName() {
         return type.getTypeName();
     }

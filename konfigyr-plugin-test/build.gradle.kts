@@ -1,4 +1,5 @@
 dependencies {
+    api(libs.spring.core)
     api(libs.junit.mockito)
     api(libs.wiremock)
 

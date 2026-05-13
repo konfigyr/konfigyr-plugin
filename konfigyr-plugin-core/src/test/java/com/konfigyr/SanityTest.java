@@ -22,13 +22,8 @@ class SanityTest {
     @Test
     @DisplayName("should generate Artifact metadata for test application")
     void generateMetadata() throws IOException {
-        final var resource = ResourceUtils.loadResource("META-INF/spring-configuration-metadata.json");
-
-        assertThat(resource.exists())
-                .as("Test application should have Spring Boot configuration metadata")
-                .isTrue();
-
-        final var descriptors = parser.parse(resource);
+        final var metadata = ResourceUtils.loadMetadata("META-INF/spring-configuration-metadata.json");
+        final var descriptors = parser.parse(metadata);
 
         assertThat(descriptors)
                 .hasSize(14)

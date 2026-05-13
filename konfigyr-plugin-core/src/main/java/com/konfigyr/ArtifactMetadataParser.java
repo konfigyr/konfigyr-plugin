@@ -6,15 +6,15 @@ import com.konfigyr.artifactory.PropertyDescriptor;
 import com.konfigyr.schema.JsonSchemaGenerator;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.configurationmetadata.ConfigurationMetadataProperty;
 import org.springframework.boot.configurationmetadata.ConfigurationMetadataRepository;
 import org.springframework.boot.configurationmetadata.ConfigurationMetadataRepositoryJsonBuilder;
-import org.springframework.core.io.Resource;
-import org.springframework.util.Assert;
-import org.springframework.util.StringUtils;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
@@ -39,6 +39,8 @@ import java.util.stream.Collectors;
  */
 public class ArtifactMetadataParser {
 
+    private static final Logger logger = LoggerFactory.getLogger(ArtifactMetadataParser.class);
+
     private final TypeNameResolver typeNameResolver;
     private final JsonSchemaGenerator jsonSchemaGenerator;
 
@@ -59,29 +61,29 @@ public class ArtifactMetadataParser {
     /**
      * Parses the given metadata files and returns a collection of {@link PropertyDescriptor}s.
      *
-     * @param metadata the metadata files to parse, cannot be {@literal null}.
+     * @param resources the metadata resources to parse, cannot be {@literal null}.
      * @return the parsed property descriptors from the Spring Boot metadata files, never {@literal null}.
      */
-    public List<PropertyDescriptor> parse(Resource... metadata) {
-        return parse(List.of(metadata));
+    public List<PropertyDescriptor> parse(ArtifactMetadataResource... resources) {
+        return parse(List.of(resources));
     }
 
     /**
      * Parses the given metadata files and returns a collection of {@link PropertyDescriptor}s.
      *
-     * @param metadata the metadata files to parse, cannot be {@literal null}.
+     * @param resources the metadata resources to parse, cannot be {@literal null}.
      * @return the parsed property descriptors from the Spring Boot metadata files, never {@literal null}.
      */
-    public List<PropertyDescriptor> parse(@NonNull Iterable<? extends Resource> metadata) {
+    public List<PropertyDescriptor> parse(@NonNull Iterable<? extends ArtifactMetadataResource> resources) {
         final ConfigurationMetadataRepositoryJsonBuilder builder = ConfigurationMetadataRepositoryJsonBuilder.create();
 
-        metadata.forEach(resource -> {
-            try {
-                builder.withJsonResource(resource.getInputStream(), StandardCharsets.UTF_8);
+        resources.forEach(resource -> {
+            try (InputStream is = resource.open()) {
+                builder.withJsonResource(is, StandardCharsets.UTF_8);
             } catch (FileNotFoundException e) {
-                throw new IllegalStateException("Could not find metadata file data for: " + resource.getFilename() , e);
+                throw new IllegalStateException("Could not find metadata file data for: " + resource.name() , e);
             } catch (IOException e) {
-                throw new IllegalStateException("Could not read metadata file data for: " + resource.getFilename(), e);
+                throw new IllegalStateException("Could not read metadata file data for: " + resource.name(), e);
             }
         });
 
@@ -95,11 +97,11 @@ public class ArtifactMetadataParser {
     }
 
     private PropertyDescriptor resolve(ConfigurationMetadataProperty metadata) {
-        Assert.hasText(metadata.getId(), "Metadata property identifier can not be blank");
-
         ResolvedPropertyType type = typeNameResolver.resolve(metadata.getType());
 
         if (type == null) {
+            logger.debug("Could not resolve type '{}' for property '{}', falling back to string schema",
+                    metadata.getType(), metadata.getId());
             type = ResolvedPropertyType.STRING_TYPE;
         }
 
@@ -155,7 +157,11 @@ public class ArtifactMetadataParser {
             resolved = Objects.toString(defaultValue, null);
         }
 
-        return StringUtils.hasText(resolved) ? resolved : null;
+        if (resolved == null || resolved.isBlank()) {
+            return null;
+        }
+
+        return resolved.trim();
     }
 
 }

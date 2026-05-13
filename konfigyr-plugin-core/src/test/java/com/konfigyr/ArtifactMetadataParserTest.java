@@ -10,9 +10,9 @@ import org.assertj.core.data.Index;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.core.io.FileSystemResource;
 
-import java.io.FileNotFoundException;
+import java.io.File;
+import java.nio.file.NoSuchFileException;
 import java.time.Duration;
 import java.util.List;
 
@@ -32,7 +32,7 @@ class ArtifactMetadataParserTest {
     @DisplayName("should parse Spring Boot configuration metadata and create an Artifact Metadata for upload")
     void shouldParseMetadata() throws Exception {
         final List<PropertyDescriptor> descriptors = resolver.parse(
-                ResourceUtils.loadResources(
+                ResourceUtils.loadMetadata(
                         "additional-spring-configuration-metadata.json",
                         "spring-configuration-metadata.json"
 
@@ -106,20 +106,20 @@ class ArtifactMetadataParserTest {
     @Test
     @DisplayName("should fail to parse invalid Spring Boot configuration metadata files")
     void shouldFailToParseInvalidMetadataFiles() throws Exception {
-        final var resource = ResourceUtils.loadResource("invalid-spring-configuration-metadata.json");
+        final var metadata = ResourceUtils.loadMetadata("invalid-spring-configuration-metadata.json");
 
-        assertThatThrownBy(() -> resolver.parse(resource))
+        assertThatThrownBy(() -> resolver.parse(metadata))
                 .isInstanceOf(IllegalStateException.class);
     }
 
     @Test
     @DisplayName("should fail to parse unknown Spring Boot configuration metadata files")
     void shouldFailToParseNonExistingMetadataFiles() {
-        final var resource = new FileSystemResource("non-existent.json");
+        final var metadata = ArtifactMetadataResource.of(new File("non-existent.json"));
 
-        assertThatThrownBy(() -> resolver.parse(resource))
+        assertThatThrownBy(() -> resolver.parse(metadata))
                 .isInstanceOf(IllegalStateException.class)
-                .hasRootCauseInstanceOf(FileNotFoundException.class);
+                .hasRootCauseInstanceOf(NoSuchFileException.class);
     }
 
 }

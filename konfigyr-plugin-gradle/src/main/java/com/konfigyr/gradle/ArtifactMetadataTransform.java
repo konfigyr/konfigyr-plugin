@@ -1,10 +1,11 @@
 package com.konfigyr.gradle;
 
+import com.konfigyr.ArtifactMetadataResource;
 import com.konfigyr.artifactory.PropertyDescriptor;
+import org.gradle.api.GradleException;
 import org.gradle.api.artifacts.transform.*;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemLocation;
-import org.gradle.api.internal.artifacts.transform.TransformException;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Property;
@@ -12,9 +13,6 @@ import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.CompileClasspath;
 import org.gradle.api.tasks.Internal;
 import org.jspecify.annotations.NullMarked;
-import org.springframework.core.io.ByteArrayResource;
-import org.springframework.core.io.FileSystemResource;
-import org.springframework.core.io.Resource;
 
 import java.io.File;
 import java.io.IOException;
@@ -98,7 +96,7 @@ public abstract class ArtifactMetadataTransform implements TransformAction<Artif
             return;
         }
 
-        final List<Resource> candidates;
+        final List<ArtifactMetadataResource> candidates;
 
         try {
             // Local project modules expose a class-output directory, not a JAR.
@@ -126,13 +124,13 @@ public abstract class ArtifactMetadataTransform implements TransformAction<Artif
 
             service.writePropertyDescriptorMetadata(candidates, classpath, output);
         } catch (Exception ex) {
-            throw new TransformException("Failed to generate Konfigyr property descriptor metadata for artifact: " +
+            throw new GradleException("Failed to generate Konfigyr property descriptor metadata for artifact: " +
                     artifact, ex);
         }
     }
 
-    private List<Resource> processJar(File jar) throws IOException {
-        final List<Resource> candidates = new ArrayList<>();
+    private List<ArtifactMetadataResource> processJar(File jar) throws IOException {
+        final List<ArtifactMetadataResource> candidates = new ArrayList<>();
 
         try (var zip = new ZipFile(jar)) {
             for (String path : METADATA_PATHS) {
@@ -143,7 +141,7 @@ public abstract class ArtifactMetadataTransform implements TransformAction<Artif
                     }
 
                     final InputStream is = zip.getInputStream(entry);
-                    candidates.add(new ByteArrayResource(is.readAllBytes(), entry.getName()));
+                    candidates.add(ArtifactMetadataResource.of(entry.getName(), is.readAllBytes()));
                 }
             }
         }
@@ -151,8 +149,8 @@ public abstract class ArtifactMetadataTransform implements TransformAction<Artif
         return candidates;
     }
 
-    private List<Resource> processDirectory(File dir) {
-        final List<Resource> candidates = new ArrayList<>();
+    private List<ArtifactMetadataResource> processDirectory(File dir) {
+        final List<ArtifactMetadataResource> candidates = new ArrayList<>();
 
         for (String path : METADATA_PATHS) {
             final File metadata = new File(dir, path);
@@ -162,7 +160,7 @@ public abstract class ArtifactMetadataTransform implements TransformAction<Artif
                     logger.debug("Found configuration metadata file '{}' in project: {}", path, dir.getName());
                 }
 
-                candidates.add(new FileSystemResource(metadata));
+                candidates.add(ArtifactMetadataResource.of(metadata));
             }
         }
 

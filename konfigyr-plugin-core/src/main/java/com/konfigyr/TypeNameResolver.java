@@ -9,7 +9,8 @@ import com.github.javaparser.ast.type.Type;
 import com.github.javaparser.ast.type.WildcardType;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
-import org.springframework.util.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,23 +35,28 @@ import java.util.concurrent.ConcurrentHashMap;
  **/
 final class TypeNameResolver {
 
+    // the type used to represent an unknown type in the cache
+    static final ResolvedPropertyType UNKNOWN_TYPE = new ResolvedPropertyType(TypeNameResolver.class);
+
+    static final Logger logger = LoggerFactory.getLogger(TypeNameResolver.class);
+
     private final TypeLoader loader;
     private final TypeResolver resolver;
     private final JavaParser parser = new JavaParser();
     private final Map<String, ResolvedPropertyType> cache = new ConcurrentHashMap<>(128, 0.5f, 4);
 
-    public TypeNameResolver(@NonNull ClassLoader loader) {
+    TypeNameResolver(@NonNull ClassLoader loader) {
         this(new TypeLoader(loader), new TypeResolver());
     }
 
-    public TypeNameResolver(@NonNull TypeLoader loader, @NonNull TypeResolver resolver) {
+    TypeNameResolver(@NonNull TypeLoader loader, @NonNull TypeResolver resolver) {
         this.loader = loader;
         this.resolver = resolver;
     }
 
     @Nullable
-    ResolvedPropertyType resolve(String className) {
-        if (!StringUtils.hasText(className)) {
+    synchronized ResolvedPropertyType resolve(String className) {
+        if (className == null || className.isBlank()) {
             return null;
         }
 
@@ -59,19 +65,25 @@ final class TypeNameResolver {
         if (resolvedPropertyType == null) {
             try {
                 resolvedPropertyType = resolveType(className);
-            } catch (ClassNotFoundException e) {
-                return null;
+            } catch (ClassNotFoundException ex) {
+                logger.debug("Could not resolve actual Java type for '{}' type name", className, ex);
             }
 
-            if (resolvedPropertyType != null) {
-                cache.put(className, resolvedPropertyType);
+            if (resolvedPropertyType == null) {
+                resolvedPropertyType = UNKNOWN_TYPE;
             }
+
+            cache.put(className, resolvedPropertyType);
+        }
+
+        if (resolvedPropertyType == UNKNOWN_TYPE) {
+            return null;
         }
 
         return resolvedPropertyType;
     }
 
-    private synchronized ResolvedPropertyType resolveType(String className) throws ClassNotFoundException {
+    private ResolvedPropertyType resolveType(String className) throws ClassNotFoundException {
         final ParseResult<Type> result = parser.parseType(className);
 
         if (result.isSuccessful()) {
@@ -82,8 +94,14 @@ final class TypeNameResolver {
             final ResolvedType resolvedType = resolve(type);
 
             if (resolvedType != null) {
-                return createResolvedType(resolvedType);
+                final ResolvedPropertyType resolvedPropertyType = createResolvedType(resolvedType);
+                logger.debug("Successfully resolved type '{}' to: {}", className, resolvedPropertyType);
+                return resolvedPropertyType;
             }
+        }
+
+        if (logger.isDebugEnabled()) {
+            logger.debug("Could not resolve type '{}' to a Java type. {}", className, result);
         }
 
         return null;

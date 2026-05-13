@@ -10,7 +10,6 @@ plugins {
 dependencies {
     implementation(project(":konfigyr-plugin-core"))
 
-    shadow(libs.spring.core)
     shadow(libs.spring.configuration.metadata)
     shadow(libs.javaparser)
 
@@ -48,8 +47,8 @@ gradlePlugin {
 
 signing {
     useInMemoryPgpKeys(
-        System.getenv("GPG_SIGNING_KEY"),
-        System.getenv("GPG_SIGNING_SECRET")
+        providers.environmentVariable("GPG_SIGNING_KEY").orNull,
+        providers.environmentVariable("GPG_SIGNING_SECRET").orNull
     )
 }
 
@@ -58,7 +57,6 @@ tasks.shadowJar {
     mergeServiceFiles()
 
     dependencies {
-        exclude(dependency(libs.spring.core))
         exclude(dependency(libs.spring.configuration.metadata))
         exclude(dependency(libs.slf4j))
 

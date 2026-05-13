@@ -2,6 +2,7 @@ package com.konfigyr.gradle;
 
 import com.konfigyr.ArtifactoryConfiguration;
 import lombok.Getter;
+import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
@@ -101,9 +102,9 @@ public class KonfigyrExtension {
         host = factory.property(String.class).convention(ArtifactoryConfiguration.DEFAULT_HOST.toString());
         tokenUri = factory.property(String.class).convention(ArtifactoryConfiguration.DEFAULT_TOKEN_URI.toString());
         service = factory.property(String.class).convention(project.getName());
-        namespace = factory.property(String.class).convention(System.getenv("KONFIGYR_NAMESPACE"));
-        clientId = factory.property(String.class).convention(System.getenv("KONFIGYR_CLIENT_ID"));
-        clientSecret = factory.property(String.class).convention(System.getenv("KONFIGYR_CLIENT_SECRET"));
+        namespace = factory.property(String.class).convention(project.getProviders().environmentVariable("KONFIGYR_NAMESPACE"));
+        clientId = factory.property(String.class).convention(project.getProviders().environmentVariable("KONFIGYR_CLIENT_ID"));
+        clientSecret = factory.property(String.class).convention(project.getProviders().environmentVariable("KONFIGYR_CLIENT_SECRET"));
         releasePollTimeout = factory.property(Long.class).convention(Duration.ofMinutes(10).toMillis());
         releasePollInterval = factory.property(Long.class).convention(Duration.ofSeconds(1).toMillis());
     }
@@ -114,6 +115,10 @@ public class KonfigyrExtension {
      * @return the Artifactory plugin configuration, never {@literal null}.
      */
     ArtifactoryConfiguration toConfiguration() {
+        assertPropertySet(getNamespace(), "namespace", "KONFIGYR_NAMESPACE");
+        assertPropertySet(getClientId(), "clientId", "KONFIGYR_CLIENT_ID");
+        assertPropertySet(getClientSecret(), "clientSecret", "KONFIGYR_CLIENT_SECRET");
+
         return ArtifactoryConfiguration.builder()
                 .host(getHost().map(URI::create).getOrElse(ArtifactoryConfiguration.DEFAULT_HOST))
                 .tokenUri(getTokenUri().map(URI::create).getOrElse(ArtifactoryConfiguration.DEFAULT_TOKEN_URI))
@@ -122,5 +127,12 @@ public class KonfigyrExtension {
                 .clientId(getClientId().get())
                 .clientSecret(getClientSecret().get())
                 .build();
+    }
+
+    static void assertPropertySet(Property<?> property, String name, String env) {
+        if (!property.isPresent()) {
+            throw new GradleException("Konfigyr plugin requires '" + name + "' to be set. " +
+                    "Configure it in the konfigyr { } block or via the '" + env + "' environment variable.");
+        }
     }
 }

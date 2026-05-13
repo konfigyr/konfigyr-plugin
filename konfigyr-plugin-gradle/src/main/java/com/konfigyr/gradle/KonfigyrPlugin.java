@@ -1,5 +1,6 @@
 package com.konfigyr.gradle;
 
+import com.konfigyr.artifactory.Artifact;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -10,8 +11,10 @@ import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Provider;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 
 import java.time.Duration;
+import java.util.*;
 
 /**
  * Gradle plugin for Konfigyr Artifacts.
@@ -75,6 +78,8 @@ public class KonfigyrPlugin implements Plugin<@NonNull Project> {
     @NullMarked
     private static Provider<GenerateArtifactMetadataTask> registerGenerateMetadataTask(Project project, Provider<ArtifactoryService> service) {
         return project.getTasks().register(GenerateArtifactMetadataTask.NAME, GenerateArtifactMetadataTask.class, task -> {
+            task.getProjectPath().set(project.getPath());
+            task.getProjectArtifacts().set(project.provider(() -> resolveProjectArtifacts(project)));
             task.getClasspath().from(project.provider(() -> resolveProjectCompileClasspath(project)));
             task.getArtifacts().set(project.provider(() -> resolveTransformedArtifactCollection(project)));
             task.getRuntimeClasspath().from(project.provider(() -> resolveProjectRuntimeClasspath(project)));
@@ -87,8 +92,10 @@ public class KonfigyrPlugin implements Plugin<@NonNull Project> {
             task.setGroup(PLUGIN_NAME);
             task.setDescription("Generates the Konfigyr artifact metadata for the project and it's dependencies");
 
-            task.dependsOn(JavaPlugin.COMPILE_JAVA_TASK_NAME, JavaPlugin.JAR_TASK_NAME);
-            task.mustRunAfter(JavaPlugin.JAR_TASK_NAME);
+            task.dependsOn(
+                    project.getTasks().named(JavaPlugin.COMPILE_JAVA_TASK_NAME),
+                    project.getTasks().named(JavaPlugin.JAR_TASK_NAME)
+            );
         });
     }
 
@@ -112,10 +119,6 @@ public class KonfigyrPlugin implements Plugin<@NonNull Project> {
             task.setDescription("Publishes the generated Konfigyr artifact metadata and the project manifest");
 
             task.dependsOn(GenerateArtifactMetadataTask.NAME);
-            task.mustRunAfter(GenerateArtifactMetadataTask.NAME);
-
-            // this task is a publishing one, it should never be cached...
-            task.getOutputs().upToDateWhen(ignore -> false);
         });
     }
 
@@ -141,6 +144,42 @@ public class KonfigyrPlugin implements Plugin<@NonNull Project> {
         return project.getConfigurations().getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME)
                 .getIncoming()
                 .getFiles();
+    }
+
+    private static Map<String, Artifact> resolveProjectArtifacts(Project project) {
+        final Set<Project> projects = project.getRootProject().getAllprojects();
+        final Map<String, Artifact> artifacts = new LinkedHashMap<>(projects.size());
+
+        project.getRootProject().getAllprojects().forEach(p -> {
+            final Artifact artifact = createProjectArtifact(p);
+
+            if (artifact != null) {
+                artifacts.put(p.getPath(), artifact);
+            }
+        });
+
+        return Collections.unmodifiableMap(artifacts);
+    }
+
+    @Nullable
+    private static Artifact createProjectArtifact(Project project) {
+        final String groupId = Objects.toString(project.getGroup(), null);
+        final String artifactId = Objects.toString(project.getName(), null);
+        final String version = Objects.toString(project.getVersion(), null);
+
+        if (groupId == null || groupId.isBlank()
+                || artifactId == null || artifactId.isBlank()
+                || version == null || version.isBlank()) {
+            return null;
+        }
+
+        return Artifact.builder()
+                .groupId(groupId)
+                .artifactId(artifactId)
+                .version(version)
+                .name(project.getDisplayName())
+                .description(project.getDescription())
+                .build();
     }
 
 }

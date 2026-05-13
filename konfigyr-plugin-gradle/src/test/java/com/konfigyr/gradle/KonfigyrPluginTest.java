@@ -5,10 +5,12 @@ import com.konfigyr.ArtifactoryConfiguration;
 import com.konfigyr.artifactory.ReleaseState;
 import com.konfigyr.test.AbstractWiremockTest;
 import com.konfigyr.test.ResourceUtils;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.gradle.api.NamedDomainObjectProvider;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.tasks.TaskProvider;
 import org.gradle.testfixtures.ProjectBuilder;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.BuildTask;
@@ -82,7 +84,9 @@ class KonfigyrPluginTest extends AbstractWiremockTest {
                 .as("Should register %s task", GenerateArtifactMetadataTask.NAME)
                 .isNotNull()
                 .returns(KonfigyrPlugin.PLUGIN_NAME, Task::getGroup)
-                .returns(Set.of(JavaPlugin.COMPILE_JAVA_TASK_NAME, JavaPlugin.JAR_TASK_NAME), Task::getDependsOn);
+                .extracting(Task::getDependsOn, InstanceOfAssertFactories.iterable(TaskProvider.class))
+                .extracting(TaskProvider::getName)
+                .containsExactlyInAnyOrder(JavaPlugin.COMPILE_JAVA_TASK_NAME, JavaPlugin.JAR_TASK_NAME);
 
         assertThat(project.getTasks().getByName(PublishArtifactMetadataTask.NAME))
                 .as("Should register %s task", PublishArtifactMetadataTask.NAME)
