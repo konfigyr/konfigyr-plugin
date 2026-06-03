@@ -10,7 +10,7 @@ spring-core = { module = "org.springframework:spring-core", version = "7.0.7" }
 spring-configuration-metadata = { module = "org.springframework.boot:spring-boot-configuration-metadata", version.ref = "spring-boot" }
 spring-configuration-processor = { module = "org.springframework.boot:spring-boot-configuration-processor", version.ref = "spring-boot" }
 spring-starter = { module = "org.springframework.boot:spring-boot-starter", version.ref = "spring-boot" }
-jackson-databind = { module = "tools.jackson.core:jackson-databind", version = "3.1.3"}
+jackson-databind = { module = "tools.jackson.core:jackson-databind", version = "3.1.4"}
 classmate = { module = "com.fasterxml:classmate", version = "1.7.3"}
 javaparser = { module = "com.github.javaparser:javaparser-symbol-solver-core", version = "3.28.0"}
 junit = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
