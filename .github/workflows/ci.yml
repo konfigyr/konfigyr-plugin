@@ -40,6 +40,6 @@ jobs:
           report_paths: '**/build/test-results/test/TEST-*.xml'
 
       - name: Test coverage reports
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
