@@ -1,6 +1,6 @@
 [versions]
 spring-boot = "4.0.6"
-junit = "6.1.0"
+junit = "6.1.1"
 
 [libraries]
 slf4j = { module = "org.slf4j:slf4j-api", version = "2.0.17" }
