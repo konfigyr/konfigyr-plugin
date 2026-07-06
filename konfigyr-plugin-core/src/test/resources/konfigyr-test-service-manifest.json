@@ -5,27 +5,42 @@
     {
       "groupId": "com.konfigyr",
       "artifactId": "konfigyr-artifactory",
-      "version": "1.0.0"
+      "version": "1.0.0",
+      "checksum": "com.konfigyr#konfigyr-artifactory#1.0.0",
+      "source": "LOCAL",
+      "resolvedAt": "2026-07-06T14:19:08Z"
     },
     {
       "groupId": "com.konfigyr",
       "artifactId": "konfigyr-crypto-api",
-      "version": "1.0.0"
+      "version": "1.0.0",
+      "checksum": "com.konfigyr#konfigyr-crypto-api#1.0.0",
+      "source": "ARTIFACTORY",
+      "resolvedAt": "2026-07-06T14:19:08Z"
     },
     {
       "groupId": "com.konfigyr",
       "artifactId": "konfigyr-crypto-tink",
-      "version": "1.0.0"
+      "version": "1.0.0",
+      "checksum": "com.konfigyr#konfigyr-crypto-tink#1.0.0",
+      "source": "ARTIFACTORY",
+      "resolvedAt": "2026-07-06T14:19:08Z"
     },
     {
       "groupId": "com.konfigyr",
       "artifactId": "konfigyr-crypto-jdbc",
-      "version": "1.0.0"
+      "version": "1.0.0",
+      "checksum": "com.konfigyr#konfigyr-crypto-jdbc#1.0.0",
+      "source": "ARTIFACTORY",
+      "resolvedAt": "2026-07-06T14:19:08Z"
     },
     {
       "groupId": "org.springframework.boot",
       "artifactId": "spring-boot-autoconfigure",
-      "version": "3.5.7"
+      "version": "3.5.7",
+      "checksum": "org.springframework.boot#spring-boot-autoconfigure#3.5.7",
+      "source": "ARTIFACTORY",
+      "resolvedAt": "2026-07-06T14:19:08Z"
     }
   ]
 }
