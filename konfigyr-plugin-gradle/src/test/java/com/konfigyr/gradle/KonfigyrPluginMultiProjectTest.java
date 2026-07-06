@@ -45,12 +45,15 @@ class KonfigyrPluginMultiProjectTest extends AbstractKonfigyrPluginTest {
                 false
         );
 
+        // Templated off the request path, not the body: this same node backs both the create (POST)
+        // and poll (GET) stubs below, and a GET request has no body for '{{jsonPath request.body ...}}'
+        // to extract from - the path is the only thing both requests have in common.
         final var publication = JsonNodeFactory.instance.objectNode()
-                .put("groupId", "{{jsonPath request.body '$.groupId'}}")
-                .put("artifactId", "{{jsonPath request.body '$.artifactId'}}")
-                .put("version", "{{jsonPath request.body '$.version'}}")
+                .put("groupId", "{{request.path.[1]}}")
+                .put("artifactId", "{{request.path.[2]}}")
+                .put("version", "{{request.path.[3]}}")
                 .put("state", ReleaseState.PENDING.name())
-                .put("checksum", "{{jsonPath request.body '$.checksum'}}")
+                .put("checksum", "checksum")
                 .putPOJO("errors", Collections.emptyList())
                 .put("publishedAt", Instant.now().toString());
 
