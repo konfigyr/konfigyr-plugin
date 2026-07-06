@@ -33,7 +33,10 @@ import java.util.function.Function;
  */
 final class OAuthClientCredentialsProvider {
 
-    private final static String FORM_PARAMETERS = "grant_type=client_credentials&client_id=%s&client_secret=%s&scope=namespaces:publish-manifests";
+    private final static String CLIENT_CREDENTIALS_FORM_PARAMETERS =
+            "grant_type=client_credentials&client_id=%s&client_secret=%s&scope=namespaces:publish-manifests";
+    private final static String TOKEN_EXCHANGE_FORM_PARAMETERS =
+            "grant_type=urn:ietf:params:oauth:grant-type:token-exchange&client_id=%s&subject_token=%s&subject_token_type=%s&scope=namespaces:publish-manifests";
 
     private final Logger logger;
     private final JsonMapper mapper;
@@ -76,10 +79,7 @@ final class OAuthClientCredentialsProvider {
             logger.debug("Attempting to obtain OAuth2 access token from: {}", configuration.tokenUri());
         }
 
-        final String form = FORM_PARAMETERS.formatted(
-                URLEncoder.encode(configuration.clientId(), StandardCharsets.UTF_8),
-                URLEncoder.encode(configuration.clientSecret(), StandardCharsets.UTF_8)
-        );
+        final String form = buildFormBody(configuration.credentials());
 
         final HttpRequest request = HttpRequest.newBuilder()
                 .uri(configuration.tokenUri())
@@ -133,6 +133,29 @@ final class OAuthClientCredentialsProvider {
         return Optional.ofNullable(node.get(key))
                 .filter(JsonNode::isValueNode)
                 .map(mapper);
+    }
+
+    /**
+     * Builds the {@code application/x-www-form-urlencoded} request body for the given {@link Credentials},
+     * encoding it according to the OAuth2 grant type it represents.
+     *
+     * @param credentials the credentials to encode, cannot be {@literal null}.
+     * @return the encoded form body, never {@literal null}.
+     */
+    private static String buildFormBody(Credentials credentials) {
+        return switch (credentials) {
+            case ClientCredentials(String clientId, String clientSecret) ->
+                    CLIENT_CREDENTIALS_FORM_PARAMETERS.formatted(
+                            URLEncoder.encode(clientId, StandardCharsets.UTF_8),
+                            URLEncoder.encode(clientSecret, StandardCharsets.UTF_8)
+                    );
+            case TokenExchange(String clientId, String subjectToken, String subjectTokenType) ->
+                    TOKEN_EXCHANGE_FORM_PARAMETERS.formatted(
+                            URLEncoder.encode(clientId, StandardCharsets.UTF_8),
+                            URLEncoder.encode(subjectToken, StandardCharsets.UTF_8),
+                            URLEncoder.encode(subjectTokenType, StandardCharsets.UTF_8)
+                    );
+        };
     }
 
 }

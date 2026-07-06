@@ -1,7 +1,7 @@
 package com.konfigyr.test;
 
 import com.konfigyr.artifactory.*;
-import com.konfigyr.artifactory.JsonSchema;
+import org.assertj.core.annotation.CanIgnoreReturnValue;
 import org.assertj.core.api.AbstractAssert;
 import org.jspecify.annotations.Nullable;
 
@@ -13,6 +13,7 @@ import java.util.Objects;
  * @author Vladimir Spasic
  * @since 1.0.0
  **/
+@CanIgnoreReturnValue
 public class PropertyDescriptorAssert extends AbstractAssert<PropertyDescriptorAssert, PropertyDescriptor> {
 
     /**

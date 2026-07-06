@@ -1,41 +1,31 @@
 package com.konfigyr.gradle;
 
 import com.konfigyr.ArtifactMetadataResource;
+import com.konfigyr.ArtifactMetadataScanner;
 import com.konfigyr.artifactory.Artifact;
 import com.konfigyr.artifactory.ArtifactMetadata;
+import com.konfigyr.artifactory.PropertyDescriptor;
 import org.gradle.api.DefaultTask;
-import org.gradle.api.artifacts.ArtifactCollection;
-import org.gradle.api.artifacts.component.ModuleComponentIdentifier;
-import org.gradle.api.artifacts.component.ProjectComponentIdentifier;
 import org.gradle.api.file.ConfigurableFileCollection;
-import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.RegularFileProperty;
-import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.*;
-import org.gradle.internal.component.local.model.TransformedComponentFileArtifactIdentifier;
-import org.jspecify.annotations.Nullable;
 
+import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Task that generates {@link ArtifactMetadata} for each resolved dependency and for the
- * current project itself, then writes the results to the output directory.
+ * Task that scans this project's built JAR file archive for Spring Boot configuration metadata
+ * and, if found, writes it out as {@link ArtifactMetadata} describing this project's artifact.
  * <p>
- * The current project and all other projects in the build are identified through
- * {@link #getProjectPath()} and {@link #getProjectArtifacts()}. Both properties are populated
- * at configuration time, avoiding any access to {@link org.gradle.api.Project} objects during
- * task execution and keeping the task compatible with the Gradle configuration cache.
- * <p>
- * The resolved artifact metadata locations are recorded in the manifest file. This manifest
- * is later consumed by {@link PublishArtifactMetadataTask} to upload only the affected
- * entries to the Konfigyr Artifactory.
- * <p>
- * Output files are named after the artifact coordinates, for example:
- * {@code com.konfigyr-konfigyr-artifactory-1.0.0.json}
+ * This is the shared first step of both publishing scenarios: {@link PublishArtifactMetadataTask}
+ * publishes this metadata directly to the Artifactory, and {@link CreateServiceReleaseTask}
+ * includes it as one of the candidates for the service's own release, alongside every scanned
+ * dependency from {@link ResolveServiceDependenciesTask}. If this project's jar does not expose
+ * any Spring Boot configuration metadata, no output is written and both downstream tasks treat
+ * that artifact as absent.
  *
  * @author Vladimir Spasic
  * @since 1.0.0
@@ -57,150 +47,79 @@ public abstract class GenerateArtifactMetadataTask extends DefaultTask {
     public abstract Property<ArtifactoryService> getService();
 
     /**
-     * Collection that contains transformed artifact metadata from the {@link ArtifactMetadataTransform}.
-     * <p>
-     * Each {@link org.gradle.api.artifacts.result.ResolvedArtifactResult} should be assocated with
-     * the {@code metadata.json} file containing the serialized {@link com.konfigyr.artifactory.PropertyDescriptor}s.
+     * This project's built jar, scanned for Spring Boot configuration metadata.
      *
-     * @return the transformed artifact metadata, never {@literal null}.
+     * @return this project's built jar, never {@literal null}.
      */
-    @Internal
-    public abstract Property<ArtifactCollection> getArtifacts();
+    @InputFile
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public abstract RegularFileProperty getProjectArchive();
 
     /**
-     * The collection of files that represent the classpath of the current project. This classpath file
-     * collection is used to create a custom {@link ClassLoader} that would generate the {@link ArtifactMetadata}
-     * for the current Gradle project.
+     * This project's own compile/runtime classpath, used purely to build a {@link ClassLoader}
+     * capable of resolving Java types referenced by this project's own Spring Boot configuration
+     * metadata (e.g. a property whose type is declared in one of this project's dependencies rather
+     * than in its own compiled classes). Never scanned for its own resource files — unlike
+     * {@link #getProjectArchive()} — so {@code @CompileClasspath} normalization (ABI-only, ignores
+     * resources) is correct here, same as {@link ArtifactMetadataTransform#getDependencies()}.
      *
-     * @return the project's classpath, never {@literal null}.
-     */
-    @InputFiles
-    @Classpath
-    public abstract ConfigurableFileCollection getRuntimeClasspath();
-
-    /**
-     * The collection of files that represent the classpath of the current project. This classpath file
-     * collection is used to create a custom {@link ClassLoader} that would generate the {@link ArtifactMetadata}
-     * for the current Gradle project.
-     *
-     * @return the project's classpath, never {@literal null}.
+     * @return this project's classpath, never {@literal null}.
      */
     @InputFiles
     @CompileClasspath
-    public abstract ConfigurableFileCollection getClasspath();
+    public abstract ConfigurableFileCollection getRuntimeClasspath();
 
     /**
-     * The manifest file that should be written that contains all the processed artifacts.
+     * This project's Maven coordinates, used to build the {@link ArtifactMetadata} when this
+     * project's jar exposes Spring Boot configuration metadata. Absent if this project has no
+     * resolvable {@code groupId}/{@code artifactId}/{@code version} (e.g. a root project with no
+     * {@code group}/{@code version} of its own), in which case this task has nothing to generate
+     * regardless of what its jar contains.
      *
-     * @return the output manifest file location, never {@literal null}.
+     * @return this project's artifact coordinates, never {@literal null}.
+     */
+    @Input
+    @Optional
+    public abstract Property<Artifact> getProjectArtifact();
+
+    /**
+     * The file this project's {@link ArtifactMetadata} is written to, if {@link #getProjectArchive()}
+     * exposes Spring Boot configuration metadata. Left unwritten otherwise.
+     *
+     * @return the metadata output file location, never {@literal null}.
      */
     @OutputFile
-    public abstract RegularFileProperty getManifest();
-
-    /**
-     * The output directory where serialized {@link ArtifactMetadata} should be written.
-     *
-     * @return the output directory, never {@literal null}.
-     */
-    @OutputDirectory
-    public abstract DirectoryProperty getOutput();
-
-    /**
-     * The Gradle path of the project this task belongs to (e.g. {@code :orders}).
-     * <p>
-     * Used as the lookup key into {@link #getProjectArtifacts()} to identify the current
-     * project when generating its {@link ArtifactMetadata}.
-     *
-     * @return the project path, never {@literal null}.
-     */
-    @Input
-    public abstract Property<String> getProjectPath();
-
-    /**
-     * A map of every project in the build, keyed by Gradle project path, with each value
-     * being a pre-built {@link Artifact} descriptor.
-     * <p>
-     * The map is populated at configuration time so the task action never needs to access
-     * live {@link org.gradle.api.Project} objects, keeping this task compatible with the
-     * Gradle configuration cache.
-     *
-     * @return the project artifacts map, never {@literal null}.
-     */
-    @Input
-    public abstract MapProperty<String, Artifact> getProjectArtifacts();
+    @Optional
+    public abstract RegularFileProperty getMetadata();
 
     @TaskAction
     void generateArtifactMetadata() throws IOException {
-        final List<String> locations = new ArrayList<>();
-        final ArtifactoryService service = getService().get();
-        final ArtifactMetadata projectArtifact = createArtifactMetadataForCurrentProject();
-
-        if (projectArtifact != null) {
-            getLogger().debug("Attempting to generate artifact metadata for current project: {}:{}:{}",
-                    projectArtifact.groupId(), projectArtifact.artifactId(), projectArtifact.version());
-
-            locations.add(service.writeArtifactMetadata(projectArtifact, getOutput().get().getAsFile()));
-        }
-
-        getArtifacts().get().forEach(artifact -> {
-            final Artifact candidate = createArtifact(artifact.getId());
-
-            if (candidate == null) {
-                return;
-            }
-
-            getLogger().debug("Attempting to generate artifact metadata for dependency: {}:{}:{}",
-                    candidate.groupId(), candidate.artifactId(), candidate.version());
-
-            // load the property descriptor metadata from the transformed artifact and
-            // create the artifact metadata that should be later uploaded to the artifactory
-            final ArtifactMetadata metadata = service.createArtifactMetadata(candidate, artifact.getFile());
-            locations.add(service.writeArtifactMetadata(metadata, getOutput().get().getAsFile()));
-        });
-
-        getLogger().debug("Generating artifact location manifest using: {}", locations);
-
-        // store the artifact metadata locations in the manifest file
-        Files.writeString(
-                getManifest().get().getAsFile().toPath(),
-                String.join("\n", locations)
-        );
-    }
-
-    @Nullable
-    private ArtifactMetadata createArtifactMetadataForCurrentProject() {
-        final List<ArtifactMetadataResource> candidates = new ArrayList<>();
-
-        getClasspath().getAsFileTree().matching(spec -> spec.include(
-                ArtifactMetadataTransform.METADATA_PATHS
-        )).forEach(file -> candidates.add(ArtifactMetadataResource.of(file)));
+        final File archive = getProjectArchive().get().getAsFile();
+        final List<ArtifactMetadataResource> candidates = ArtifactMetadataScanner.scan(archive);
 
         if (candidates.isEmpty()) {
-            return null;
+            getLogger().debug("No Spring Boot configuration metadata found for this project's artifact: {}", archive);
+            return;
         }
 
-        final Artifact artifact = getProjectArtifacts().get().get(getProjectPath().get());
-
-        if (artifact == null) {
-            return null;
+        if (!getProjectArtifact().isPresent()) {
+            getLogger().debug("This project has no resolvable groupId/artifactId/version, nothing to generate");
+            return;
         }
 
-        return artifact.toMetadata(getService().get().parsePropertyDescriptors(
-                candidates, getClasspath()
-        ));
-    }
+        final ArtifactoryService service = getService().get();
+        final Artifact projectArtifact = getProjectArtifact().get();
 
-    @Nullable
-    private Artifact createArtifact(Object identifier) {
-        if (identifier instanceof ModuleComponentIdentifier module) {
-            return Artifact.of(module.getGroup(), module.getModule(), module.getVersion());
-        } else if (identifier instanceof ProjectComponentIdentifier module) {
-            return getProjectArtifacts().get().get(module.getProjectPath());
-        } else if (identifier instanceof TransformedComponentFileArtifactIdentifier module) {
-            return createArtifact(module.getComponentIdentifier());
-        } else {
-            return null;
-        }
+        final List<File> classpath = new ArrayList<>(getRuntimeClasspath().getFiles());
+        classpath.add(archive);
+
+        final List<PropertyDescriptor> descriptors = service.parsePropertyDescriptors(candidates, classpath);
+        final ArtifactMetadata metadata = projectArtifact.toMetadata(descriptors);
+
+        getLogger().debug("Successfully generated artifact metadata for current project: {}:{}:{}",
+                metadata.groupId(), metadata.artifactId(), metadata.version());
+
+        service.writeServiceArtifactMetadata(metadata, getMetadata().get().getAsFile());
     }
 
 }

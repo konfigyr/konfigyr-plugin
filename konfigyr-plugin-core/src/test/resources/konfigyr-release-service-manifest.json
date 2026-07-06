@@ -1,16 +1,20 @@
 {
   "id": "6274e1984052",
-  "name": "konfigyr-published-service",
+  "state": "PENDING",
   "artifacts": [
     {
       "groupId": "com.konfigyr",
       "artifactId": "konfigyr-artifactory",
-      "version": "1.0.0"
+      "version": "1.0.0",
+      "status": "SKIP"
     },
     {
       "groupId": "com.konfigyr",
       "artifactId": "konfigyr-crypto-api",
-      "version": "1.0.0"
+      "version": "1.0.0",
+      "status": "UPLOAD_REQUIRED"
     }
-  ]
+  ],
+  "errors": [],
+  "publishedAt": "{{now}}"
 }

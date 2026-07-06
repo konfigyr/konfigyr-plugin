@@ -16,24 +16,19 @@ import java.util.Objects;
  * {@link ArtifactoryClient} implementations to authenticate and communicate with the Artifactory service.
  *
  * @param host           The base URL of the Konfigyr Artifactory API, never {@literal null}.
- * @param clientId       OAuth2 client identifier, never {@literal null}.
- * @param clientSecret   OAuth2 client secret, never {@literal null}.
+ * @param credentials    Credentials used to authenticate with the Konfigyr Identity Provider, never {@literal null}.
  * @param tokenUri       OAuth2 token endpoint URI, never {@literal null}.
- * @param namespace      Optional namespace or service identifier for scoping requests, may be {@literal null}.
- * @param service        The service identifier for scoping requests, never {@literal null}.
  * @param connectTimeout Connection timeout for HTTP requests, defaults to 10 seconds.
  * @param readTimeout    Read timeout for HTTP responses, defaults to 30 seconds.
  * @param userAgent      The User-Agent HTTP header value, defaults to {@code konfigyr-plugin}.
  * @author Vladimir Spasic
  * @since 1.0.0
+ * @see Credentials
  */
 public record ArtifactoryConfiguration(
         @NonNull URI host,
-        @NonNull String clientId,
-        @NonNull String clientSecret,
+        @NonNull Credentials credentials,
         @NonNull URI tokenUri,
-        @NonNull String namespace,
-        @NonNull String service,
         @Nullable String userAgent,
         @Nullable Duration connectTimeout,
         @Nullable Duration readTimeout
@@ -47,11 +42,8 @@ public record ArtifactoryConfiguration(
 
     public ArtifactoryConfiguration {
         Objects.requireNonNull(host, "host must not be null");
-        Objects.requireNonNull(clientId, "clientId must not be blank");
-        Objects.requireNonNull(clientSecret, "clientSecret must not be blank");
+        Objects.requireNonNull(credentials, "credentials must not be null");
         Objects.requireNonNull(tokenUri, "tokenUri must not be null");
-        Objects.requireNonNull(namespace, "namespace must not be null");
-        Objects.requireNonNull(service, "service must not be null");
 
         if (connectTimeout == null) {
             connectTimeout = Duration.ofSeconds(10);
@@ -79,10 +71,7 @@ public record ArtifactoryConfiguration(
     public static final class Builder {
         private URI host = DEFAULT_HOST;
         private URI tokenUri = DEFAULT_TOKEN_URI;
-        private String clientId;
-        private String clientSecret;
-        private String service;
-        private String namespace;
+        private Credentials credentials;
         private Duration connectTimeout = Duration.ofSeconds(10);
         private Duration readTimeout = Duration.ofSeconds(30);
         private String userAgent = "konfigyr-plugin";
@@ -113,24 +102,14 @@ public record ArtifactoryConfiguration(
         }
 
         /**
-         * Sets the OAuth2 client identifier for authentication.
+         * Sets the credentials used to authenticate with the Konfigyr Identity Provider.
          *
-         * @param clientId the OAuth2 client ID, never {@literal null}.
+         * @param credentials the credentials, never {@literal null}.
          * @return this builder instance for method chaining.
+         * @see Credentials
          */
-        public Builder clientId(String clientId) {
-            this.clientId = clientId;
-            return this;
-        }
-
-        /**
-         * Sets the OAuth2 client secret for authentication.
-         *
-         * @param clientSecret the OAuth2 client secret, never {@literal null}.
-         * @return this builder instance for method chaining.
-         */
-        public Builder clientSecret(String clientSecret) {
-            this.clientSecret = clientSecret;
+        public Builder credentials(Credentials credentials) {
+            this.credentials = credentials;
             return this;
         }
 
@@ -152,28 +131,6 @@ public record ArtifactoryConfiguration(
          */
         public Builder tokenUri(URI tokenUri) {
             this.tokenUri = tokenUri;
-            return this;
-        }
-
-        /**
-         * Sets the namespace for scoping requests.
-         *
-         * @param namespace the namespace identifier, never {@literal null}.
-         * @return this builder instance for method chaining.
-         */
-        public Builder namespace(String namespace) {
-            this.namespace = namespace;
-            return this;
-        }
-
-        /**
-         * Sets the service identifier for scoping requests.
-         *
-         * @param service the service identifier, never {@literal null}.
-         * @return this builder instance for method chaining.
-         */
-        public Builder service(String service) {
-            this.service = service;
             return this;
         }
 
@@ -216,8 +173,7 @@ public record ArtifactoryConfiguration(
          * @return a new configuration instance, never {@literal null}.
          */
         public ArtifactoryConfiguration build() {
-            return new ArtifactoryConfiguration(host, clientId, clientSecret, tokenUri,
-                    namespace, service, userAgent, connectTimeout, readTimeout);
+            return new ArtifactoryConfiguration(host, credentials, tokenUri, userAgent, connectTimeout, readTimeout);
         }
     }
 }

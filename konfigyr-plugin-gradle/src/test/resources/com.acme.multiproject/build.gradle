@@ -1,11 +1,11 @@
 plugins {
     id 'java'
-    id 'com.konfigyr.publish-manifest' apply(false)
+    id 'com.konfigyr.artifactory' apply(false)
 }
 
 subprojects {
     apply plugin: 'java'
-    apply plugin: 'com.konfigyr.publish-manifest'
+    apply plugin: 'com.konfigyr.artifactory'
 
     group = 'com.acme'
     version = '1.0.0'
@@ -32,10 +32,16 @@ subprojects {
     konfigyr {
         host = "${wiremock}"
         tokenUri = "${wiremock}/oauth/token"
-        namespace = 'konfigyr'
-        clientId = 'konfigyr-client-id'
-        clientSecret = 'konfigyr-client-secret'
-        releasePollTimeout = 3000
-        releasePollInterval = 200
+        clientCredentials {
+            clientId = 'konfigyr-client-id'
+            clientSecret = 'konfigyr-client-secret'
+        }
+        publish {
+            pollTimeout = 3000
+            pollInterval = 200
+        }
+        service {
+            namespace = 'konfigyr'
+        }
     }
 }

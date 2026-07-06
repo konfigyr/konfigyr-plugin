@@ -1,15 +1,19 @@
 package com.konfigyr.test;
 
+import com.github.tomakehurst.wiremock.client.MappingBuilder;
 import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
 import com.github.tomakehurst.wiremock.junit.Stubbing;
 import com.github.tomakehurst.wiremock.matching.UrlPattern;
 import com.github.tomakehurst.wiremock.stubbing.StubMapping;
 import com.konfigyr.ArtifactoryConfiguration;
+import com.konfigyr.ClientCredentials;
+import com.konfigyr.TokenExchange;
 import com.konfigyr.artifactory.Artifact;
 import com.konfigyr.artifactory.ArtifactMetadata;
 import com.konfigyr.artifactory.ReleaseState;
 import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.NonNull;
+import org.assertj.core.annotation.CanIgnoreReturnValue;
+import org.jspecify.annotations.NullMarked;
 import tools.jackson.databind.node.JsonNodeFactory;
 
 import java.io.IOException;
@@ -21,6 +25,8 @@ import static com.github.tomakehurst.wiremock.client.WireMock.*;
 /**
  * Factory class for creating stub mappings for testing purposes.
  */
+@NullMarked
+@CanIgnoreReturnValue
 @RequiredArgsConstructor
 public final class StubFactories {
 
@@ -33,8 +39,7 @@ public final class StubFactories {
      * @param configuration the client configuration
      * @return OAuth2 Token Exchange stub mapping
      */
-    @NonNull
-    public StubMapping tokenExchangeSuccessFor(@NonNull ArtifactoryConfiguration configuration) {
+    public StubMapping tokenExchangeSuccessFor(ArtifactoryConfiguration configuration) {
         return tokenExchangeSuccessFor(configuration, 600);
     }
 
@@ -46,8 +51,7 @@ public final class StubFactories {
      * @param expiry token expiry in seconds
      * @return OAuth2 Token Exchange stub mapping
      */
-    @NonNull
-    public StubMapping tokenExchangeSuccessFor(@NonNull ArtifactoryConfiguration configuration, long expiry) {
+    public StubMapping tokenExchangeSuccessFor(ArtifactoryConfiguration configuration, long expiry) {
         final String json = JsonNodeFactory.instance.objectNode()
                 .put("token_type", "Bearer")
                 .put("access_token", "oauth-access-token")
@@ -63,8 +67,7 @@ public final class StubFactories {
      * @param configuration the client configuration
      * @return OAuth2 Token Exchange stub mapping
      */
-    @NonNull
-    public StubMapping tokenExchangeErrorFor(@NonNull ArtifactoryConfiguration configuration) {
+    public StubMapping tokenExchangeErrorFor(ArtifactoryConfiguration configuration) {
         final String json = JsonNodeFactory.instance.objectNode()
                 .put("error", "invalid_client")
                 .put("error_description", "Unknown OAuth client.")
@@ -81,15 +84,21 @@ public final class StubFactories {
      * @param response response builder
      * @return OAuth2 Token Exchange stub mapping
      */
-    @NonNull
-    public StubMapping tokenExchangeResponseFor(@NonNull ArtifactoryConfiguration configuration,
-                                                @NonNull ResponseDefinitionBuilder response) {
-        return stubbing.stubFor(
-                post(urlEqualTo("/oauth/token"))
-                        .withFormParam("grant_type", equalTo("client_credentials"))
-                        .withFormParam("client_id", equalTo(configuration.clientId()))
-                        .withFormParam("client_secret", equalTo(configuration.clientSecret()))
-                        .willReturn(response.withHeader("Content-Type", "application/json"))
+    public StubMapping tokenExchangeResponseFor(ArtifactoryConfiguration configuration, ResponseDefinitionBuilder response) {
+        final MappingBuilder mapping = switch (configuration.credentials()) {
+            case ClientCredentials credentials -> post(urlEqualTo("/oauth/token"))
+                    .withFormParam("grant_type", equalTo("client_credentials"))
+                    .withFormParam("client_id", equalTo(credentials.clientId()))
+                    .withFormParam("client_secret", equalTo(credentials.clientSecret()));
+            case TokenExchange credentials -> post(urlEqualTo("/oauth/token"))
+                    .withFormParam("grant_type", equalTo("urn:ietf:params:oauth:grant-type:token-exchange"))
+                    .withFormParam("client_id", equalTo(credentials.clientId()))
+                    .withFormParam("subject_token", equalTo(credentials.subjectToken()))
+                    .withFormParam("subject_token_type", equalTo(credentials.subjectTokenType()));
+        };
+
+        return stubbing.stubFor(mapping.willReturn(
+                response.withHeader("Content-Type", "application/json"))
         );
     }
 
@@ -97,12 +106,12 @@ public final class StubFactories {
      * Creates a Service Manifest download mapping with a response that is extracted from the supplied manifest
      * resource location.
      *
-     * @param configuration the client configuration
+     * @param namespace the namespace owning the service
+     * @param service the service whose manifest is downloaded
      * @param manifestLocation location of the manifest resource
      * @return artifact manifest stub mapping
      */
-    @NonNull
-    public StubMapping manifestResponseFor(@NonNull ArtifactoryConfiguration configuration, @NonNull String manifestLocation) {
+    public StubMapping manifestResponseFor(String namespace, String service, String manifestLocation) {
         final String manifest;
 
         try {
@@ -111,17 +120,17 @@ public final class StubFactories {
             throw new IllegalStateException("Could not read manifest resource at: " + manifestLocation, ex);
         }
 
-        return manifestResponseFor(configuration, jsonResponse(manifest, 200));
+        return manifestResponseFor(namespace, service, jsonResponse(manifest, 200));
     }
 
     /**
      * Creates a Service Manifest download mapping with an error result of 404 HTTP status code.
      *
-     * @param configuration the client configuration
+     * @param namespace the namespace owning the service
+     * @param service the service whose manifest is downloaded
      * @return artifact manifest stub mapping
      */
-    @NonNull
-    public StubMapping manifestNotFoundFor(@NonNull ArtifactoryConfiguration configuration) {
+    public StubMapping manifestNotFoundFor(String namespace, String service) {
         final String json = JsonNodeFactory.instance.objectNode()
                 .put("type", "about:blank")
                 .put("status", 404)
@@ -129,20 +138,19 @@ public final class StubFactories {
                 .put("detail", "Manifest not found.")
                 .toPrettyString();
 
-        return manifestResponseFor(configuration, jsonResponse(json, 404));
+        return manifestResponseFor(namespace, service, jsonResponse(json, 404));
     }
 
     /**
      * Creates a Service Manifest download mapping with a custom response definition.
      *
-     * @param configuration the client configuration
+     * @param namespace the namespace owning the service
+     * @param service the service whose manifest is downloaded
      * @param response response definition
      * @return artifact manifest stub mapping
      */
-    @NonNull
-    public StubMapping manifestResponseFor(@NonNull ArtifactoryConfiguration configuration,
-                                           @NonNull ResponseDefinitionBuilder response) {
-        final String path = "/namespaces/" + configuration.namespace() + "/services/" + configuration.service() + "/manifest";
+    public StubMapping manifestResponseFor(String namespace, String service, ResponseDefinitionBuilder response) {
+        final String path = "/namespaces/" + namespace + "/services/" + service + "/manifest";
 
         return stubbing.stubFor(
                 get(urlPathEqualTo(path))
@@ -158,8 +166,7 @@ public final class StubFactories {
      * @param exists {@literal true} if the release exists, {@literal false} otherwise
      * @return get artifact release check stub mapping
      */
-    @NonNull
-    public StubMapping getReleaseExistsResponseFor(@NonNull Artifact artifact, boolean exists) {
+    public StubMapping getReleaseExistsResponseFor(Artifact artifact, boolean exists) {
         final String path = "/artifacts/" + artifact.groupId() + "/" + artifact.artifactId() + "/" + artifact.version();
 
         return getReleaseExistsResponseFor(urlPathEqualTo(path), exists);
@@ -172,8 +179,7 @@ public final class StubFactories {
      * @param exists {@literal true} if the release exists, {@literal false} otherwise
      * @return get artifact release check stub mapping
      */
-    @NonNull
-    public StubMapping getReleaseExistsResponseFor(@NonNull UrlPattern url, boolean exists) {
+    public StubMapping getReleaseExistsResponseFor(UrlPattern url, boolean exists) {
         return getReleaseExistsResponseFor(url, aResponse().withStatus(exists ? 200 : 404));
     }
 
@@ -184,8 +190,7 @@ public final class StubFactories {
      * @param response the response builder
      * @return get artifact release check stub mapping
      */
-    @NonNull
-    public StubMapping getReleaseExistsResponseFor(@NonNull UrlPattern url, ResponseDefinitionBuilder response) {
+    public StubMapping getReleaseExistsResponseFor(UrlPattern url, ResponseDefinitionBuilder response) {
         return stubbing.stubFor(
                 head(url)
                         .withHeader("Authorization", matching("^Bearer\\s+([a-zA-Z0-9-._~+/]+=*)$"))
@@ -194,15 +199,14 @@ public final class StubFactories {
     }
 
     /**
-     * Creates a Service publish mapping with a custom response.
+     * Creates a Service release mapping with a custom response.
      *
-     * @param configuration the client configuration
+     * @param namespace the namespace owning the service
+     * @param service the service the release is opened for
      * @param responseLocation response location
      * @return service publish stub mapping
      */
-    @NonNull
-    public StubMapping publishResponseFor(@NonNull ArtifactoryConfiguration configuration,
-                                          @NonNull String responseLocation) {
+    public StubMapping serviceReleaseResponseFor(String namespace, String service, String responseLocation) {
         final String response;
 
         try {
@@ -211,20 +215,19 @@ public final class StubFactories {
             throw new IllegalStateException("Could not read manifest publish response at: " + responseLocation, ex);
         }
 
-        return publishResponseFor(configuration, jsonResponse(response, 200));
+        return serviceReleaseResponseFor(namespace, service, jsonResponse(response, 200));
     }
 
     /**
-     * Creates a Service publish mapping with a custom response definition.
+     * Creates a Service release mapping with a custom response definition.
      *
-     * @param configuration the client configuration
+     * @param namespace the namespace owning the service
+     * @param service the service the release is opened for
      * @param response response definition
      * @return service publish stub mapping
      */
-    @NonNull
-    public StubMapping publishResponseFor(@NonNull ArtifactoryConfiguration configuration,
-                                           @NonNull ResponseDefinitionBuilder response) {
-        final String path = "/namespaces/" + configuration.namespace() + "/services/" + configuration.service() + "/manifest";
+    public StubMapping serviceReleaseResponseFor(String namespace, String service, ResponseDefinitionBuilder response) {
+        final String path = "/namespaces/" + namespace + "/services/" + service + "/releases";
 
         return stubbing.stubFor(
                 post(urlPathEqualTo(path))
@@ -234,14 +237,93 @@ public final class StubFactories {
     }
 
     /**
-     * Creates an Artifact Release get mapping with a given release state response.
+     * Creates a Service release mapping with a custom response definition, asserting that the
+     * submitted release candidates contain an entry for the given artifact with a non-blank checksum.
      *
-     * @param artifact the artifact for which the release is retrieved
-     * @param state the release state
-     * @return get artifact release state stub mapping
+     * @param namespace the namespace owning the service
+     * @param service the service the release is opened for
+     * @param expectedCandidate an artifact expected to be present in the submitted release candidates
+     * @param response response definition
+     * @return service publish stub mapping
      */
-    @NonNull
-    public StubMapping getReleaseResponseFor(@NonNull Artifact artifact, @NonNull ReleaseState state) {
+    public StubMapping serviceReleaseResponseFor(
+            String namespace, String service, Artifact expectedCandidate, ResponseDefinitionBuilder response
+    ) {
+        final String path = "/namespaces/" + namespace + "/services/" + service + "/releases";
+
+        return stubbing.stubFor(
+                post(urlPathEqualTo(path))
+                        .withHeader("Authorization", matching("^Bearer\\s+([a-zA-Z0-9-._~+/]+=*)$"))
+                        .withRequestBody(matchingJsonPath(
+                                "$[?(@.groupId=='" + expectedCandidate.groupId() + "' && " +
+                                "@.artifactId=='" + expectedCandidate.artifactId() + "' && " +
+                                "@.version=='" + expectedCandidate.version() + "' && " +
+                                "@.checksum)]"
+                        ))
+                        .willReturn(response.withHeader("Content-Type", "application/json"))
+        );
+    }
+
+    /**
+     * Creates a Service Release artifact metadata upload mapping with a given response builder.
+     *
+     * @param namespace the namespace owning the service
+     * @param service the service the release belongs to
+     * @param release the service release identifier for which the artifact is uploaded
+     * @param artifact the artifact for which metadata is uploaded
+     * @param response the response builder
+     * @return upload service release artifact stub mapping
+     */
+    public StubMapping uploadArtifactResponseFor(
+            String namespace,
+            String service,
+            String release,
+            Artifact artifact,
+            ResponseDefinitionBuilder response
+    ) {
+        final String path = "/namespaces/" + namespace + "/services/" + service +
+                "/releases/" + release + "/artifacts/" + artifact.groupId() + "/" + artifact.artifactId() + "/" + artifact.version();
+
+        return stubbing.stubFor(
+                post(urlPathEqualTo(path))
+                        .withHeader("Authorization", matching("^Bearer\\s+([a-zA-Z0-9-._~+/]+=*)$"))
+                        .willReturn(response)
+        );
+    }
+
+    /**
+     * Creates a Service Release completion (publish) mapping with a given response builder.
+     *
+     * @param namespace the namespace owning the service
+     * @param service the service the release belongs to
+     * @param release the service release identifier to complete
+     * @param response the response builder
+     * @return complete service release stub mapping
+     */
+    public StubMapping completeServiceReleaseResponseFor(
+            String namespace,
+            String service,
+            String release,
+            ResponseDefinitionBuilder response
+    ) {
+        final String path = "/namespaces/" + namespace + "/services/" + service +
+                "/releases/" + release + "/publish";
+
+        return stubbing.stubFor(
+                post(urlPathEqualTo(path))
+                        .withHeader("Authorization", matching("^Bearer\\s+([a-zA-Z0-9-._~+/]+=*)$"))
+                        .willReturn(response.withHeader("Content-Type", "application/json"))
+        );
+    }
+
+    /**
+     * Creates an Artifact Publication get mapping with a given release state response.
+     *
+     * @param artifact the artifact for which the publication is retrieved
+     * @param state the publication state
+     * @return retrieve artifact publication state stub mapping
+     */
+    public StubMapping getPublicationResponseFor(Artifact artifact, ReleaseState state) {
         final var json = JsonNodeFactory.instance.objectNode()
                 .put("groupId", artifact.groupId())
                 .put("artifactId", artifact.artifactId())
@@ -253,20 +335,19 @@ public final class StubFactories {
                 .put("state", state.name())
                 .put("checksum", "checksum")
                 .putPOJO("errors", Collections.emptyList())
-                .put("releasedAt", Instant.now().toString())
+                .put("publishedAt", Instant.now().toString())
                 .toPrettyString();
 
-        return getReleaseResponseFor(artifact, jsonResponse(json, 200));
+        return getPublicationResponseFor(artifact, jsonResponse(json, 200));
     }
 
     /**
-     * Creates an Artifact Release get mapping with an error result of 404 HTTP status code.
+     * Creates an Artifact Publication get mapping with an error result of 404 HTTP status code.
      *
-     * @param artifact the artifact for which the release is retrieved
-     * @return artifact manifest stub mapping
+     * @param artifact the artifact for which the publication is retrieved
+     * @return retrieve artifact publication state stub mapping
      */
-    @NonNull
-    public StubMapping releaseNotFoundFor(@NonNull Artifact artifact) {
+    public StubMapping publicationNotFoundFor(Artifact artifact) {
         final String json = JsonNodeFactory.instance.objectNode()
                 .put("type", "about:blank")
                 .put("status", 404)
@@ -274,21 +355,20 @@ public final class StubFactories {
                 .put("detail", "Artifact not found.")
                 .toPrettyString();
 
-        return getReleaseResponseFor(artifact, jsonResponse(json, 404));
+        return getPublicationResponseFor(artifact, jsonResponse(json, 404));
     }
 
     /**
      * Creates an Artifact Metadata get mapping with a given response builder.
      *
-     * @param artifact the artifact for which release is retrieved
+     * @param artifact the artifact for which publication is retrieved
      * @param response the response builder
-     * @return get artifact release state stub mapping
+     * @return retrieve artifact publication state stub mapping
      */
-    @NonNull
-    public StubMapping getReleaseResponseFor(@NonNull Artifact artifact, @NonNull ResponseDefinitionBuilder response) {
+    public StubMapping getPublicationResponseFor(Artifact artifact, ResponseDefinitionBuilder response) {
         final String path = "/artifacts/" + artifact.groupId() + "/" + artifact.artifactId() + "/" + artifact.version();
 
-        return getReleaseResponseFor(
+        return getPublicationResponseFor(
                 urlPathEqualTo(path),
                 response.withHeader("Content-Type", "application/json")
         );
@@ -299,10 +379,9 @@ public final class StubFactories {
      *
      * @param url the url pattern to be matched
      * @param response the response builder
-     * @return upload artifact release state stub mapping
+     * @return retrieve artifact publication state stub mapping
      */
-    @NonNull
-    public StubMapping getReleaseResponseFor(@NonNull UrlPattern url, @NonNull ResponseDefinitionBuilder response) {
+    public StubMapping getPublicationResponseFor(UrlPattern url, ResponseDefinitionBuilder response) {
         return stubbing.stubFor(
                 get(url)
                         .withHeader("Authorization", matching("^Bearer\\s+([a-zA-Z0-9-._~+/]+=*)$"))
@@ -314,11 +393,10 @@ public final class StubFactories {
      * Creates an Artifact Metadata upload mapping with a given release state response.
      *
      * @param metadata artifact metadata
-     * @param state the release state
-     * @return upload artifact release state stub mapping
+     * @param state the publication state
+     * @return artifact publication stub mapping
      */
-    @NonNull
-    public StubMapping createReleaseResponseFor(@NonNull ArtifactMetadata metadata, @NonNull ReleaseState state) {
+    public StubMapping createPublicationResponseFor(ArtifactMetadata metadata, ReleaseState state) {
         final var json = JsonNodeFactory.instance.objectNode()
                 .put("groupId", metadata.groupId())
                 .put("artifactId", metadata.artifactId())
@@ -330,20 +408,19 @@ public final class StubFactories {
                 .put("state", state.name())
                 .put("checksum", metadata.checksum())
                 .putPOJO("errors", Collections.emptyList())
-                .put("releasedAt", Instant.now().toString())
+                .put("publishedAt", Instant.now().toString())
                 .toPrettyString();
 
-        return createReleaseResponseFor(metadata, jsonResponse(json, 200));
+        return createPublicationResponseFor(metadata, jsonResponse(json, 200));
     }
 
     /**
      * Creates a failing Artifact Metadata upload mapping with an internal server error response.
      *
-     * @param artifact the artifact for which release should fail
-     * @return upload artifact release state stub mapping
+     * @param artifact the artifact for which publication should fail
+     * @return artifact publication stub mapping
      */
-    @NonNull
-    public StubMapping createReleaseErrorResponseFor(@NonNull Artifact artifact) {
+    public StubMapping createReleaseErrorResponseFor(Artifact artifact) {
         final String json = JsonNodeFactory.instance.objectNode()
                 .put("type", "about:blank")
                 .put("status", 500)
@@ -351,21 +428,20 @@ public final class StubFactories {
                 .put("detail", "Could not upload artifact metadata.")
                 .toPrettyString();
 
-        return createReleaseResponseFor(artifact, jsonResponse(json, 500));
+        return createPublicationResponseFor(artifact, jsonResponse(json, 500));
     }
 
     /**
      * Creates an Artifact Metadata upload mapping with a given response builder.
      *
-     * @param artifact the artifact for which release should fail
+     * @param artifact the artifact for which publication should fail
      * @param response the response builder
-     * @return upload artifact release state stub mapping
+     * @return artifact publication stub mapping
      */
-    @NonNull
-    public StubMapping createReleaseResponseFor(@NonNull Artifact artifact, @NonNull ResponseDefinitionBuilder response) {
+    public StubMapping createPublicationResponseFor(Artifact artifact, ResponseDefinitionBuilder response) {
         final String path = "/artifacts/" + artifact.groupId() + "/" + artifact.artifactId() + "/" + artifact.version();
 
-        return createReleaseResponseFor(
+        return createPublicationResponseFor(
                 urlPathEqualTo(path),
                 response.withHeader("Content-Type", "application/json")
         );
@@ -376,10 +452,9 @@ public final class StubFactories {
      *
      * @param url the url pattern to be matched
      * @param response the response builder
-     * @return upload artifact release state stub mapping
+     * @return artifact publication stub mapping
      */
-    @NonNull
-    public StubMapping createReleaseResponseFor(@NonNull UrlPattern url, @NonNull ResponseDefinitionBuilder response) {
+    public StubMapping createPublicationResponseFor(UrlPattern url, ResponseDefinitionBuilder response) {
         return stubbing.stubFor(
                 post(url)
                         .withHeader("Authorization", matching("^Bearer\\s+([a-zA-Z0-9-._~+/]+=*)$"))

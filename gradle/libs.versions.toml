@@ -5,7 +5,7 @@ junit = "6.1.0"
 [libraries]
 slf4j = { module = "org.slf4j:slf4j-api", version = "2.0.17" }
 logback = { module = "ch.qos.logback:logback-classic", version = "1.5.34" }
-konfigyr-artifactory = { module = "com.konfigyr:konfigyr-artifactory", version = "1.0.0-RC4" }
+konfigyr-artifactory = { module = "com.konfigyr:konfigyr-artifactory", version = "1.0.0-RC5" }
 spring-core = { module = "org.springframework:spring-core", version = "7.0.7" }
 spring-configuration-metadata = { module = "org.springframework.boot:spring-boot-configuration-metadata", version.ref = "spring-boot" }
 spring-configuration-processor = { module = "org.springframework.boot:spring-boot-configuration-processor", version.ref = "spring-boot" }
