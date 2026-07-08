@@ -159,6 +159,31 @@ public abstract class ArtifactoryService implements BuildService<ArtifactoryServ
     }
 
     /**
+     * Writes the given {@link ArtifactMetadata} to the exact given target file, unlike
+     * {@link #writeArtifactMetadata(ArtifactMetadata, File)} which derives a filename from the
+     * artifact's coordinates inside a target directory. Used for the metadata of the artifact that
+     * represents the service (project) itself, where there is always at most one file and no need
+     * to derive its name.
+     *
+     * @param metadata artifact metadata to be written
+     * @param target the exact file to write the metadata to
+     */
+    public void writeServiceArtifactMetadata(ArtifactMetadata metadata, File target) {
+        mapper.writeValue(target, metadata);
+    }
+
+    /**
+     * Reads a single {@link ArtifactMetadata} previously written by
+     * {@link #writeServiceArtifactMetadata(ArtifactMetadata, File)}.
+     *
+     * @param metadata the exact file to read the metadata from, cannot be {@literal null}.
+     * @return the artifact metadata, never {@literal null}.
+     */
+    public ArtifactMetadata readArtifactMetadata(File metadata) {
+        return mapper.readValue(metadata, ArtifactMetadata.class);
+    }
+
+    /**
      * Reads {@link ArtifactMetadata} from the given directory that are present in the artifact manifest list.
      * <p>
      * This method should collect all the filenames in the artifact manifest file and then attempt to deserialize
@@ -179,95 +204,134 @@ public abstract class ArtifactoryService implements BuildService<ArtifactoryServ
     }
 
     /**
-     * Download the manifest for the current Gradle project that matches the Konfigyr service.
-     * <p>
-     * This manifest is used to check if this plugin should upload a new state of configuration metadata for the
-     * Konfigyr service.
+     * Attempts to publish a new {@link ServiceRelease} for the given namespace and service.
      *
-     * @return the current manifest, never {@literal null}.
+     * @param namespace the namespace owning the service, cannot be {@literal null}.
+     * @param service the service this release is opened for, cannot be {@literal null}.
+     * @param candidates the release candidate artifacts to be added to the new release, cannot be {@literal null}.
+     * @return the service release, never {@literal null}
      */
-    @NonNull
-    public Manifest getManifest() {
-        return client.getManifest();
+    public ServiceRelease release(@NonNull String namespace, @NonNull String service,
+                                   @NonNull Collection<? extends ServiceReleaseCandidate> candidates) {
+        final ServiceRelease release = client.release(namespace, service, candidates);
+
+        logger.info("Successfully created release for service [id={}, state={}] with artifacts: {}",
+                release.id(), release.state(), release.artifacts());
+
+        return release;
     }
 
     /**
-     * Retrieves the release state for the uploaded {@link ArtifactMetadata}.
+     * Uploads the given {@link ArtifactMetadata} for the given {@link ServiceRelease}. Intended to be
+     * called from a {@link ServiceReleaseArtifactUploadAction}, one artifact per work item.
      *
-     * @param artifact the artifact for which release is retrieved, cannot be {@literal null}.
-     * @return the release state, never {@literal null}.
+     * @param namespace the namespace owning the service, cannot be {@literal null}.
+     * @param service the service this release belongs to, cannot be {@literal null}.
+     * @param release the service release this upload contributes to, cannot be {@literal null}.
+     * @param metadata the artifact metadata payload to upload, cannot be {@literal null}.
+     * @throws PublishException if the upload fails.
      */
-    @NonNull
-    public Release getRelease(@NonNull Artifact artifact) {
-        return client.getRelease(artifact);
-    }
-
-    /**
-     * Attempts to publish a new {@link Manifest} for the current Gradle project.
-     *
-     * @param artifacts the artifacts to be added to the new manifest, cannot be {@literal null}.
-     */
-    public void publish(@NonNull Collection<? extends Artifact> artifacts) {
-        final Manifest manifest = client.publish(artifacts);
-
-        logger.info("Successfully published Manifest for service [id={}, name={}] with artifacts: {}",
-                manifest.id(), manifest.name(), manifest.artifacts());
-    }
-
-    /**
-     * Starts the upload process for the given {@link ArtifactMetadata}. This method would post the
-     * metadata to the Konfigyr Artifactory and then poll the service until the release state is either
-     * successfully released or failed.
-     *
-     * @param metadata the artifact metadata to upload, cannot be {@literal null}.
-     * @throws PublishException if the poll process timed out or the artifact metadata upload fails.
-     */
-    public void upload(@NonNull ArtifactMetadata metadata) {
+    public void upload(@NonNull String namespace, @NonNull String service,
+                        @NonNull ServiceRelease release, @NonNull ArtifactMetadata metadata) {
         final String coordinates = formatCoordinates(metadata, '.');
 
         if (logger.isDebugEnabled()) {
-            logger.debug("Attempting to upload artifact metadata for Artifact({})", coordinates);
+            logger.debug("Attempting to upload Artifact({}) metadata for service release {}", coordinates, release.id());
         }
 
-        if (client.isReleased(metadata)) {
-            logger.lifecycle("Release for Artifact({}) is already present in the Artifactory", coordinates);
+        try {
+            client.upload(namespace, service, release, metadata);
+        } catch (Exception ex) {
+            throw new PublishException("Failed to upload Artifact(%s) metadata for service release %s"
+                    .formatted(coordinates, release.id()), ex);
+        }
+
+        logger.lifecycle("Successfully uploaded Artifact({}) metadata for service release {}", coordinates, release.id());
+    }
+
+    /**
+     * Completes the given {@link ServiceRelease}, promoting it to the service's current {@link Manifest}.
+     * Every {@link ServiceReleaseEntry} requiring an upload must already have been uploaded via
+     * {@link #upload(String, String, ServiceRelease, ArtifactMetadata)} before this is called.
+     *
+     * @param namespace the namespace owning the service, cannot be {@literal null}.
+     * @param service the service this release belongs to, cannot be {@literal null}.
+     * @param release the release to complete, cannot be {@literal null}.
+     * @return the completed release, never {@literal null}.
+     * @throws PublishException if the release could not be completed.
+     */
+    @NonNull
+    public ServiceRelease complete(@NonNull String namespace, @NonNull String service, @NonNull ServiceRelease release) {
+        final ServiceRelease completed;
+
+        try {
+            completed = client.complete(namespace, service, release);
+        } catch (Exception ex) {
+            throw new PublishException("Failed to complete service release " + release.id(), ex);
+        }
+
+        logger.info("Successfully completed service release [id={}, state={}] with artifacts: {}",
+                completed.id(), completed.state(), completed.artifacts());
+
+        return completed;
+    }
+
+    /**
+     * Starts the publication process for the given {@link ArtifactMetadata}. This method would post the
+     * metadata to the Konfigyr Artifactory and then poll the service until the publication state is either
+     * successfully published or failed.
+     *
+     * @param metadata the artifact metadata to publish, cannot be {@literal null}.
+     * @param timeout the maximum time to wait for a successful poll of the release, cannot be {@literal null}.
+     * @param interval the time interval between consecutive polling attempts, cannot be {@literal null}.
+     * @throws PublishException if the poll process timed out or the artifact metadata upload fails.
+     */
+    public void publish(@NonNull ArtifactMetadata metadata, @NonNull Duration timeout, @NonNull Duration interval) {
+        final String coordinates = formatCoordinates(metadata, '.');
+
+        if (logger.isDebugEnabled()) {
+            logger.debug("Attempting to publish artifact metadata for Artifact({})", coordinates);
+        }
+
+        if (client.isPublished(metadata)) {
+            logger.info("Artifact({}) is already published in the Artifactory", coordinates);
             return;
         }
 
-        Release release;
+        Publication publication;
 
         try {
-            release = client.upload(metadata);
+            publication = client.publish(metadata);
         } catch (Exception ex) {
             throw new PublishException("Failed to upload Artifact(%s) to Artifactory".formatted(coordinates), ex);
         }
 
-        final BackOffExecution execution = new BackOffExecution(getParameters());
+        final BackOffExecution execution = new BackOffExecution(interval.toMillis(), timeout.toMillis());
 
-        while (release.state() == ReleaseState.PENDING) {
-            final long timeout = execution.nextBackOff();
+        while (publication.state() == PublicationState.PENDING) {
+            final long backOff = execution.nextBackOff();
 
-            if (timeout == BackOffExecution.STOP) {
-                throw new PublishException("Release is still pending for Artifact(%s) after polling timeout is exceeded"
+            if (backOff == BackOffExecution.STOP) {
+                throw new PublishException("Publication is still pending for Artifact(%s) after polling timeout is exceeded"
                         .formatted(coordinates));
             }
 
-            logger.info("Release is not yet complete for Artifact({}), polling for status update...", coordinates);
+            logger.info("Artifact({}) is not yet published, polling for status update...", coordinates);
 
             try {
-                Thread.sleep(timeout);
+                Thread.sleep(backOff);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new RuntimeException("Artifact release state polling interrupted", e);
+                throw new RuntimeException("Artifact publication state polling interrupted", e);
             }
 
-            release = client.getRelease(metadata);
+            publication = client.getPublication(metadata);
         }
 
-        if (release.state() == ReleaseState.RELEASED) {
-            logger.lifecycle("Release has been successfully processed for Artifact({})", coordinates);
+        if (publication.state() == PublicationState.PUBLISHED) {
+            logger.lifecycle("Publication has been successfully processed for Artifact({})", coordinates);
         } else {
-            logger.warn("Could not process release for Artifact({}) with errors: {}", coordinates, release.errors());
+            logger.warn("Could not create publication for Artifact({}) with errors: {}", coordinates, publication.errors());
         }
     }
 
@@ -294,10 +358,6 @@ public abstract class ArtifactoryService implements BuildService<ArtifactoryServ
 
         Property<@NotNull ArtifactoryConfiguration> getConfiguration();
 
-        Property<@NonNull Duration> getTimeout();
-
-        Property<@NonNull Duration> getInterval();
-
     }
 
     static final class BackOffExecution {
@@ -308,10 +368,6 @@ public abstract class ArtifactoryService implements BuildService<ArtifactoryServ
 
         private long elapsed = 0;
         private int attempts = 0;
-
-        BackOffExecution(Parameters parameters) {
-            this(parameters.getInterval().get().toMillis(), parameters.getTimeout().get().toMillis());
-        }
 
         BackOffExecution(long interval, long timeout) {
             this.interval = interval;

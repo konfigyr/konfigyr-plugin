@@ -1,6 +1,7 @@
 package com.konfigyr.gradle;
 
 import com.konfigyr.ArtifactMetadataResource;
+import com.konfigyr.ArtifactMetadataScanner;
 import com.konfigyr.artifactory.PropertyDescriptor;
 import org.gradle.api.GradleException;
 import org.gradle.api.artifacts.transform.*;
@@ -10,18 +11,14 @@ import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.CompileClasspath;
 import org.gradle.api.tasks.Internal;
 import org.jspecify.annotations.NullMarked;
 
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
 
 /**
  * A Gradle {@link TransformAction} that processes each JAR on the {@code runtimeClasspath} and produces
@@ -54,25 +51,23 @@ public abstract class ArtifactMetadataTransform implements TransformAction<Artif
      */
     static final String METADATA_FILE_NAME = "metadata.json";
 
-    static final Set<String> METADATA_PATHS = Set.of(
-            "META-INF/spring-configuration-metadata.json",
-            "META-INF/additional-spring-configuration-metadata.json",
-            "META-INF/spring/org.springframework.boot.configuration-metadata.json"
-    );
-
     final Logger logger = Logging.getLogger(getClass());
 
     /**
      * The location of the artifact file being transformed.
      * <p>
-     * {@code @Classpath} annotation here tells Gradle to derive the cache key from the artifacts
-     * content hash rather than its path. This is essential for correctness in reproducible and
-     * relocatable builds.
+     * {@code @Classpath} annotation here tells Gradle to derive the cache key from the artifact's
+     * content hash rather than its path, normalizing manifest/timestamp noise while still hashing
+     * resource files. This artifact is scanned for {@code META-INF/spring-configuration-metadata.json}
+     * resources, so {@code @CompileClasspath} normalization would be incorrect here: it discards
+     * non-class resources from the cache key entirely, which would let a dependency's configuration
+     * metadata change (e.g. a default value or description) without invalidating this transform's
+     * cached output.
      *
      * @return the artifact file, never {@literal null}.
      */
     @InputArtifact
-    @CompileClasspath
+    @Classpath
     public abstract Provider<FileSystemLocation> getArtifact();
 
     /**
@@ -92,20 +87,10 @@ public abstract class ArtifactMetadataTransform implements TransformAction<Artif
     public void transform(TransformOutputs outputs) {
         final File artifact = getArtifact().get().getAsFile();
 
-        if (!artifact.exists()) {
-            return;
-        }
-
-        final List<ArtifactMetadataResource> candidates;
-
         try {
             // Local project modules expose a class-output directory, not a JAR.
             // The service's own metadata lives here before the jar task runs.
-            if (artifact.isDirectory()) {
-                candidates = processDirectory(artifact);
-            } else {
-                candidates = processJar(artifact);
-            }
+            final List<ArtifactMetadataResource> candidates = ArtifactMetadataScanner.scan(artifact);
 
             if (candidates.isEmpty()) {
                 logger.debug("No Spring Boot configuration metadata files found in artifact: {}", artifact);
@@ -127,44 +112,6 @@ public abstract class ArtifactMetadataTransform implements TransformAction<Artif
             throw new GradleException("Failed to generate Konfigyr property descriptor metadata for artifact: " +
                     artifact, ex);
         }
-    }
-
-    private List<ArtifactMetadataResource> processJar(File jar) throws IOException {
-        final List<ArtifactMetadataResource> candidates = new ArrayList<>();
-
-        try (var zip = new ZipFile(jar)) {
-            for (String path : METADATA_PATHS) {
-                final ZipEntry entry = zip.getEntry(path);
-                if (entry != null) {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("Found configuration metadata file '{}' in Artifact JAR: {}", path, jar.getName());
-                    }
-
-                    final InputStream is = zip.getInputStream(entry);
-                    candidates.add(ArtifactMetadataResource.of(entry.getName(), is.readAllBytes()));
-                }
-            }
-        }
-
-        return candidates;
-    }
-
-    private List<ArtifactMetadataResource> processDirectory(File dir) {
-        final List<ArtifactMetadataResource> candidates = new ArrayList<>();
-
-        for (String path : METADATA_PATHS) {
-            final File metadata = new File(dir, path);
-
-            if (metadata.exists()) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("Found configuration metadata file '{}' in project: {}", path, dir.getName());
-                }
-
-                candidates.add(ArtifactMetadataResource.of(metadata));
-            }
-        }
-
-        return candidates;
     }
 
     interface Parameters extends TransformParameters {

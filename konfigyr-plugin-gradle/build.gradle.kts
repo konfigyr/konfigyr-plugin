@@ -22,7 +22,7 @@ gradlePlugin {
     vcsUrl = "https://github.com/konfigyr/konfigyr-plugin"
     plugins {
         register("konfigyr") {
-            id = "com.konfigyr.publish-manifest"
+            id = "com.konfigyr.artifactory"
             displayName = "Konfigyr Configuration Publisher"
             description = "Extracts Spring Boot @ConfigurationProperties metadata and publishes it to Konfigyr, enabling centralised configuration management, auto-generated documentation, and provenance tracking across your services."
             implementationClass = "com.konfigyr.gradle.KonfigyrPlugin"
