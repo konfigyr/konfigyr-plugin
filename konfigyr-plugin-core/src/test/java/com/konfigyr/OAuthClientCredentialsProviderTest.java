@@ -34,7 +34,7 @@ class OAuthClientCredentialsProviderTest extends AbstractWiremockTest {
                 .withFormParam("grant_type", WireMock.equalTo("client_credentials"))
                 .withFormParam("client_id", WireMock.equalTo("test-plugin-client-id"))
                 .withFormParam("client_secret", WireMock.equalTo("client-secret"))
-                .withFormParam("scope", WireMock.equalTo("namespaces:publish-manifests")));
+                .withFormParam("scope", WireMock.equalTo("artifactory:publish namespaces:publish-releases")));
     }
 
     @Test
@@ -53,7 +53,7 @@ class OAuthClientCredentialsProviderTest extends AbstractWiremockTest {
                 .withFormParam("client_id", WireMock.equalTo("test-plugin-client-id"))
                 .withFormParam("subject_token", WireMock.equalTo("test-subject-token"))
                 .withFormParam("subject_token_type", WireMock.equalTo("urn:ietf:params:oauth:token-type:jwt"))
-                .withFormParam("scope", WireMock.equalTo("namespaces:publish-manifests")));
+                .withFormParam("scope", WireMock.equalTo("artifactory:publish namespaces:publish-releases")));
     }
 
     @Test

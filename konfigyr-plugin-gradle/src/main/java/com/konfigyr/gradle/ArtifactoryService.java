@@ -294,7 +294,7 @@ public abstract class ArtifactoryService implements BuildService<ArtifactoryServ
         }
 
         if (client.isPublished(metadata)) {
-            logger.lifecycle("Artifact({}) is already published in the Artifactory", coordinates);
+            logger.info("Artifact({}) is already published in the Artifactory", coordinates);
             return;
         }
 

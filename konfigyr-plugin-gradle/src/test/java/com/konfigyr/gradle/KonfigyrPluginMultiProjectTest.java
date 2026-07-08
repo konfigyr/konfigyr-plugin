@@ -92,7 +92,7 @@ class KonfigyrPluginMultiProjectTest extends AbstractKonfigyrPluginTest {
                 .toPrettyString();
 
         wiremock.stubFor(
-                post(urlPathTemplate("/namespaces/{namespace}/services/{service}/releases/{release}/publish"))
+                post(urlPathTemplate("/namespaces/{namespace}/services/{service}/releases/{release}/complete"))
                         .withHeader("Authorization", matching("^Bearer\\s+([a-zA-Z0-9-._~+/]+=*)$"))
                         .willReturn(jsonResponse(completed, 200))
         );

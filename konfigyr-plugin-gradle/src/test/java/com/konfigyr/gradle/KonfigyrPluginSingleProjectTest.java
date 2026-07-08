@@ -64,9 +64,9 @@ class KonfigyrPluginSingleProjectTest extends AbstractKonfigyrPluginTest {
         wiremock.verify(1, getRequestedFor(urlPathEqualTo("/artifacts/com.acme/acme/1.0.0")));
         wiremock.verify(1, postRequestedFor(urlPathEqualTo("/namespaces/konfigyr/services/test-service/releases")));
         wiremock.verify(1, postRequestedFor(urlPathEqualTo(
-                "/namespaces/konfigyr/services/test-service/releases/" + RELEASE_ID + "/artifacts/com.acme/acme/1.0.0")));
+                "/namespaces/konfigyr/services/test-service/releases/" + RELEASE_ID + "/artifacts")));
         wiremock.verify(1, postRequestedFor(urlPathEqualTo(
-                "/namespaces/konfigyr/services/test-service/releases/" + RELEASE_ID + "/publish")));
+                "/namespaces/konfigyr/services/test-service/releases/" + RELEASE_ID + "/complete")));
     }
 
     @Test

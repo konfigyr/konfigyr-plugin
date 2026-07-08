@@ -147,7 +147,8 @@ public interface ArtifactoryClient {
      * <p>
      * Implementations should perform an HTTP {@code POST} request, with {@code metadata} serialized
      * as the JSON request body, to the following endpoint:
-     * {@code /namespaces/{namespace}/services/{service}/releases/{release}/artifacts/{groupId}/{artifactId}/{version}}.
+     * {@code /namespaces/{namespace}/services/{service}/releases/{release}/artifacts}. The artifact's
+     * coordinates are carried by the request body, not the URL.
      * <p>
      * On success the server responds with no content, hence the {@code void} return type, there is
      * nothing further for the caller to act on.
@@ -176,7 +177,7 @@ public interface ArtifactoryClient {
      * {@link #getManifest(String, String)} reflects the artifacts and metadata submitted in this release.
      * <p>
      * Implementations should perform an HTTP {@code POST} request to the following endpoint:
-     * {@code /namespaces/{namespace}/services/{service}/releases/{release}/publish}.
+     * {@code /namespaces/{namespace}/services/{service}/releases/{release}/complete}.
      *
      * @param namespace the namespace owning the service, must not be {@literal null} or blank.
      * @param service the service this release belongs to, must not be {@literal null} or blank.

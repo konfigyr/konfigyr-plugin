@@ -281,18 +281,22 @@ public final class StubFactories {
             Artifact artifact,
             ResponseDefinitionBuilder response
     ) {
-        final String path = "/namespaces/" + namespace + "/services/" + service +
-                "/releases/" + release + "/artifacts/" + artifact.groupId() + "/" + artifact.artifactId() + "/" + artifact.version();
+        final String path = "/namespaces/" + namespace + "/services/" + service + "/releases/" + release + "/artifacts";
 
         return stubbing.stubFor(
                 post(urlPathEqualTo(path))
                         .withHeader("Authorization", matching("^Bearer\\s+([a-zA-Z0-9-._~+/]+=*)$"))
+                        .withRequestBody(matchingJsonPath(
+                                "$[?(@.groupId=='" + artifact.groupId() + "' && " +
+                                "@.artifactId=='" + artifact.artifactId() + "' && " +
+                                "@.version=='" + artifact.version() + "')]"
+                        ))
                         .willReturn(response)
         );
     }
 
     /**
-     * Creates a Service Release completion (publish) mapping with a given response builder.
+     * Creates a Service Release completion mapping with a given response builder.
      *
      * @param namespace the namespace owning the service
      * @param service the service the release belongs to
@@ -307,7 +311,7 @@ public final class StubFactories {
             ResponseDefinitionBuilder response
     ) {
         final String path = "/namespaces/" + namespace + "/services/" + service +
-                "/releases/" + release + "/publish";
+                "/releases/" + release + "/complete";
 
         return stubbing.stubFor(
                 post(urlPathEqualTo(path))

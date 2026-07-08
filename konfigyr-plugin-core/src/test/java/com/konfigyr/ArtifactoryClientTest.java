@@ -202,7 +202,7 @@ class ArtifactoryClientTest extends AbstractWiremockTest {
         assertThatNoException().isThrownBy(() -> client.upload(NAMESPACE, SERVICE, release, metadata));
 
         wiremock.verify(postRequestedFor(urlPathEqualTo(
-                "/namespaces/konfigyr/services/konfigyr-test-service/releases/6274e1984052/artifacts/com.konfigyr/konfigyr-crypto-api/1.0.0"))
+                "/namespaces/konfigyr/services/konfigyr-test-service/releases/6274e1984052/artifacts"))
                 .withRequestBody(equalToJson(
                         "{\"groupId\":\"com.konfigyr\",\"artifactId\":\"konfigyr-crypto-api\",\"version\":\"1.0.0\"," +
                                 "\"properties\":[{\"name\":\"konfigyr.message\",\"typeName\":\"java.lang.String\"," +

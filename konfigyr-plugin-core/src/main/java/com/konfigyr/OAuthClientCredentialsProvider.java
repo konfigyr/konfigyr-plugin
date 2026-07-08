@@ -33,10 +33,12 @@ import java.util.function.Function;
  */
 final class OAuthClientCredentialsProvider {
 
+    private final static String DEFAULT_OAUTH_SCOPES =
+            URLEncoder.encode("artifactory:publish namespaces:publish-releases", StandardCharsets.UTF_8);
     private final static String CLIENT_CREDENTIALS_FORM_PARAMETERS =
-            "grant_type=client_credentials&client_id=%s&client_secret=%s&scope=namespaces:publish-manifests";
+            "grant_type=client_credentials&client_id=%s&client_secret=%s&scope=%s";
     private final static String TOKEN_EXCHANGE_FORM_PARAMETERS =
-            "grant_type=urn:ietf:params:oauth:grant-type:token-exchange&client_id=%s&subject_token=%s&subject_token_type=%s&scope=namespaces:publish-manifests";
+            "grant_type=urn:ietf:params:oauth:grant-type:token-exchange&client_id=%s&subject_token=%s&subject_token_type=%s&scope=%s";
 
     private final Logger logger;
     private final JsonMapper mapper;
@@ -147,13 +149,15 @@ final class OAuthClientCredentialsProvider {
             case ClientCredentials(String clientId, String clientSecret) ->
                     CLIENT_CREDENTIALS_FORM_PARAMETERS.formatted(
                             URLEncoder.encode(clientId, StandardCharsets.UTF_8),
-                            URLEncoder.encode(clientSecret, StandardCharsets.UTF_8)
+                            URLEncoder.encode(clientSecret, StandardCharsets.UTF_8),
+                            DEFAULT_OAUTH_SCOPES
                     );
             case TokenExchange(String clientId, String subjectToken, String subjectTokenType) ->
                     TOKEN_EXCHANGE_FORM_PARAMETERS.formatted(
                             URLEncoder.encode(clientId, StandardCharsets.UTF_8),
                             URLEncoder.encode(subjectToken, StandardCharsets.UTF_8),
-                            URLEncoder.encode(subjectTokenType, StandardCharsets.UTF_8)
+                            URLEncoder.encode(subjectTokenType, StandardCharsets.UTF_8),
+                            DEFAULT_OAUTH_SCOPES
                     );
         };
     }

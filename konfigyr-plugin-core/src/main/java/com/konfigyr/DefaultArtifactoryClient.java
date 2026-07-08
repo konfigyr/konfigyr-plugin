@@ -140,8 +140,7 @@ public final class DefaultArtifactoryClient implements ArtifactoryClient {
             throw new IllegalStateException("Failed to create artifact metadata payload", e);
         }
 
-        final URI uri = buildUri("namespaces", namespace, "services", service,
-                "releases", release.id(), "artifacts", metadata.groupId(), metadata.artifactId(), metadata.version());
+        final URI uri = buildUri("namespaces", namespace, "services", service, "releases", release.id(), "artifacts");
 
         final HttpRequest request = createHttpRequest("POST", uri, body);
 
@@ -158,7 +157,7 @@ public final class DefaultArtifactoryClient implements ArtifactoryClient {
                     namespace, service, release.id());
         }
 
-        final URI uri = buildUri("namespaces", namespace, "services", service, "releases", release.id(), "publish");
+        final URI uri = buildUri("namespaces", namespace, "services", service, "releases", release.id(), "complete");
 
         final HttpRequest request = createHttpRequest("POST", uri, null);
         final ServiceRelease completed = execute(request, ServiceRelease.class);
