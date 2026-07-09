@@ -29,7 +29,7 @@ import java.util.List;
  * this task is registered with in {@link KonfigyrPlugin}.
  *
  * @author Vladimir Spasic
- * @since 1.0.0
+ * @since 1.1.0
  */
 @DisableCachingByDefault(because = "Performs a network call against a stateful remote service")
 public abstract class CreateServiceReleaseTask extends DefaultTask {
