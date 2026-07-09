@@ -67,14 +67,14 @@ scenarios.
 ```kotlin
 // build.gradle.kts
 plugins {
-    id("com.konfigyr.artifactory") version "1.0.0"
+    id("com.konfigyr.artifactory") version "1.1.0"
 }
 ```
 
 ```groovy
 // build.gradle
 plugins {
-    id 'com.konfigyr.artifactory' version '1.0.0'
+    id 'com.konfigyr.artifactory' version '1.1.0'
 }
 ```
 
@@ -228,7 +228,7 @@ Apply the plugin selectively and share the common configuration at the root:
 // root build.gradle.kts                                                                                                                                                                                                                              
 
 plugins {
-    id("com.konfigyr.artifactory") version "1.0.0" apply false
+    id("com.konfigyr.artifactory") version "1.1.0" apply false
 }
 
 subprojects {

@@ -28,7 +28,7 @@ import java.util.List;
  * that artifact as absent.
  *
  * @author Vladimir Spasic
- * @since 1.0.0
+ * @since 1.1.0
  */
 @CacheableTask
 public abstract class GenerateArtifactMetadataTask extends DefaultTask {

@@ -13,7 +13,7 @@ import org.jspecify.annotations.NonNull;
  * required by a {@link ServiceRelease} using the registered {@link ArtifactoryService}.
  *
  * @author Vladimir Spasic
- * @since 1.0.0
+ * @since 1.1.0
  */
 public abstract class ServiceReleaseArtifactUploadAction implements WorkAction<ServiceReleaseArtifactUploadAction.Parameters> {
 

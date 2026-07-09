@@ -18,7 +18,7 @@ import java.util.Objects;
  * @param clientSecret the OAuth2 {@code client_secret} known only to the client and the identity
  *                     provider, never {@literal null}.
  * @author Vladimir Spasic
- * @since 1.0.0
+ * @since 1.1.0
  * @see Credentials
  */
 @NullMarked

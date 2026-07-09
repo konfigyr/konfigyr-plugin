@@ -22,7 +22,7 @@ import java.util.zip.ZipFile;
  * configuration metadata", shared by every place in the build that needs to answer that question.
  *
  * @author Vladimir Spasic
- * @since 1.0.0
+ * @since 1.1.0
  */
 @NullMarked
 public final class ArtifactMetadataScanner {

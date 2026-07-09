@@ -21,7 +21,7 @@ import java.util.Objects;
  *                         {@code subjectToken} (for example {@code urn:ietf:params:oauth:token-type:jwt}
  *                         or {@code urn:ietf:params:oauth:token-type:id_token}), never {@literal null}.
  * @author Vladimir Spasic
- * @since 1.0.0
+ * @since 1.1.0
  * @see Credentials
  */
 @NullMarked

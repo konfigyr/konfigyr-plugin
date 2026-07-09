@@ -239,7 +239,7 @@ public class KonfigyrExtension {
      * defined by <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-4.4">RFC 6749, Section 4.4</a>.
      *
      * @author Vladimir Spasic
-     * @since 1.0.0
+     * @since 1.1.0
      * @see KonfigyrExtension#clientCredentials(Action)
      */
     @Getter
@@ -283,7 +283,7 @@ public class KonfigyrExtension {
      * <a href="https://datatracker.ietf.org/doc/html/rfc8693">RFC 8693</a>.
      *
      * @author Vladimir Spasic
-     * @since 1.0.0
+     * @since 1.1.0
      * @see KonfigyrExtension#tokenExchange(Action)
      */
     @Getter
@@ -338,7 +338,7 @@ public class KonfigyrExtension {
      * with no {@link #namespace} configured skips it entirely.
      *
      * @author Vladimir Spasic
-     * @since 1.0.0
+     * @since 1.1.0
      * @see KonfigyrExtension#service(Action)
      */
     @Getter
@@ -370,7 +370,7 @@ public class KonfigyrExtension {
      * {@code PublishArtifactMetadataTask} uploads this project's own artifact metadata.
      *
      * @author Vladimir Spasic
-     * @since 1.0.0
+     * @since 1.1.0
      * @see KonfigyrExtension#publish(Action)
      */
     @Getter

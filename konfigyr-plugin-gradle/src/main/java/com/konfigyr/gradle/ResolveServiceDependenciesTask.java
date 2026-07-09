@@ -40,7 +40,7 @@ import java.util.List;
  * {@code com.konfigyr-konfigyr-artifactory-1.0.0.json}
  *
  * @author Vladimir Spasic
- * @since 1.0.0
+ * @since 1.1.0
  */
 @CacheableTask
 public abstract class ResolveServiceDependenciesTask extends DefaultTask {
