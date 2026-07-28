@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import java.time.*;
 import java.util.*;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
@@ -123,9 +124,13 @@ final class PrimitiveSchemaDefinitionProvider<T extends JsonSchema, B extends Js
         /* Custom string type formats */
         definitions.add(PrimitiveSchemaDefinition.string(loader, UUID.class, "uuid"));
         definitions.add(PrimitiveSchemaDefinition.string(loader, Charset.class, "charset"));
+        definitions.add(PrimitiveSchemaDefinition.string(loader, Pattern.class, "regex"));
         definitions.add(PrimitiveSchemaDefinition.string(loader, ZoneId.class, "time-zone"));
         definitions.add(PrimitiveSchemaDefinition.string(loader, TimeZone.class, "time-zone"));
+        definitions.add(PrimitiveSchemaDefinition.string(loader, YearMonth.class, "year-month"));
+        definitions.add(PrimitiveSchemaDefinition.string(loader, Year.class, "year"));
         definitions.add(PrimitiveSchemaDefinition.string(loader, Locale.class, "language"));
+        definitions.add(PrimitiveSchemaDefinition.string(loader, Currency.class, "currency"));
         definitions.add(PrimitiveSchemaDefinition.string(loader, Inet4Address.class, "ipv4"));
         definitions.add(PrimitiveSchemaDefinition.string(loader, Inet6Address.class, "ipv6"));
 
@@ -133,23 +138,22 @@ final class PrimitiveSchemaDefinitionProvider<T extends JsonSchema, B extends Js
                 PrimitiveSchemaDefinition.of(loader, javaType, JsonSchemaType.BOOLEAN)
         ));
 
+        Stream.of(Short.class, short.class).forEach(javaType -> definitions.add(
+                PrimitiveSchemaDefinition.integer(loader, javaType, "int16")
+        ));
         Stream.of(Integer.class, int.class).forEach(javaType -> definitions.add(
                 PrimitiveSchemaDefinition.integer(loader, javaType, "int32")
         ));
         Stream.of(Long.class, long.class).forEach(javaType -> definitions.add(
                 PrimitiveSchemaDefinition.integer(loader, javaType, "int64")
         ));
-        Stream.of(BigInteger.class, Short.class, short.class).forEach(javaType -> definitions.add(
-                PrimitiveSchemaDefinition.integer(loader, javaType, null)
-        ));
-
         Stream.of(Double.class, double.class).forEach(javaType -> definitions.add(
                 PrimitiveSchemaDefinition.number(loader, javaType, "double")
         ));
         Stream.of(Float.class, float.class).forEach(javaType -> definitions.add(
                 PrimitiveSchemaDefinition.number(loader, javaType, "float")
         ));
-        Stream.of(BigDecimal.class, Number.class).forEach(javaType -> definitions.add(
+        Stream.of(BigInteger.class, BigDecimal.class, Number.class).forEach(javaType -> definitions.add(
                 PrimitiveSchemaDefinition.number(loader, javaType, null)
         ));
         return Collections.unmodifiableSet(definitions);
