@@ -23,17 +23,17 @@ public abstract class ServiceReleaseArtifactUploadAction implements WorkAction<S
     @Override
     public void execute() {
         final ArtifactoryService service = getArtifactoryService().get();
-        final String namespace = getParameters().getNamespace().get();
+        final String registryName = getParameters().getRegistryName().get();
         final String serviceName = getParameters().getServiceName().get();
         final ServiceRelease release = getParameters().getRelease().get();
         final ArtifactMetadata artifact = getParameters().getArtifact().get();
 
-        service.upload(namespace, serviceName, release, artifact);
+        service.upload(registryName, serviceName, release, artifact);
     }
 
     interface Parameters extends WorkParameters {
 
-        Property<@NonNull String> getNamespace();
+        Property<@NonNull String> getRegistryName();
 
         Property<@NonNull String> getServiceName();
 

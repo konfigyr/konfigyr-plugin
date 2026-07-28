@@ -5,8 +5,8 @@ import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
 import com.github.tomakehurst.wiremock.junit.Stubbing;
 import com.github.tomakehurst.wiremock.matching.UrlPattern;
 import com.github.tomakehurst.wiremock.stubbing.StubMapping;
-import com.konfigyr.ArtifactoryConfiguration;
 import com.konfigyr.ClientCredentials;
+import com.konfigyr.Registry;
 import com.konfigyr.TokenExchange;
 import com.konfigyr.artifactory.Artifact;
 import com.konfigyr.artifactory.ArtifactMetadata;
@@ -17,6 +17,7 @@ import org.jspecify.annotations.NullMarked;
 import tools.jackson.databind.node.JsonNodeFactory;
 
 import java.io.IOException;
+import java.net.URI;
 import java.time.Instant;
 import java.util.Collections;
 
@@ -33,59 +34,79 @@ public final class StubFactories {
     private final Stubbing stubbing;
 
     /**
+     * Creates an OAuth2 Authorization Server Metadata mapping (RFC 8414) served at
+     * {@code /.well-known/oauth-authorization-server}, pointing the discovered token endpoint at
+     * {@code /oauth/token} on the same {@code issuer}.
+     *
+     * @param issuer the registry {@code url} discovery is performed against
+     * @return OAuth2 Authorization Server Metadata stub mapping
+     */
+    public StubMapping authorizationServerMetadataFor(URI issuer) {
+        final String json = JsonNodeFactory.instance.objectNode()
+                .put("issuer", issuer.toString())
+                .put("token_endpoint", issuer + "/oauth/token")
+                .toPrettyString();
+
+        return stubbing.stubFor(
+                get(urlPathEqualTo("/.well-known/oauth-authorization-server"))
+                        .willReturn(jsonResponse(json, 200))
+        );
+    }
+
+    /**
      * Creates an OAuth2 Token Exchange mapping with a successful result that contains an OAuth Access Token
      * response that expires in 10 minutes.
      *
-     * @param configuration the client configuration
+     * @param registry the registry being authenticated against
      * @return OAuth2 Token Exchange stub mapping
      */
-    public StubMapping tokenExchangeSuccessFor(ArtifactoryConfiguration configuration) {
-        return tokenExchangeSuccessFor(configuration, 600);
+    public StubMapping tokenExchangeSuccessFor(Registry registry) {
+        return tokenExchangeSuccessFor(registry, 600);
     }
 
     /**
      * Creates an OAuth2 Token Exchange mapping with a successful result that contains an OAuth Access Token that would
      * expire in a specified number of seconds.
      *
-     * @param configuration the client configuration
+     * @param registry the registry being authenticated against
      * @param expiry token expiry in seconds
      * @return OAuth2 Token Exchange stub mapping
      */
-    public StubMapping tokenExchangeSuccessFor(ArtifactoryConfiguration configuration, long expiry) {
+    public StubMapping tokenExchangeSuccessFor(Registry registry, long expiry) {
         final String json = JsonNodeFactory.instance.objectNode()
                 .put("token_type", "Bearer")
                 .put("access_token", "oauth-access-token")
                 .put("expires_in", expiry)
                 .toPrettyString();
 
-        return tokenExchangeResponseFor(configuration, jsonResponse(json, 200));
+        return tokenExchangeResponseFor(registry, jsonResponse(json, 200));
     }
 
     /**
      * Creates an OAuth2 Token Exchange mapping with an error result of {@code invalid_client} and 401 status code.
      *
-     * @param configuration the client configuration
+     * @param registry the registry being authenticated against
      * @return OAuth2 Token Exchange stub mapping
      */
-    public StubMapping tokenExchangeErrorFor(ArtifactoryConfiguration configuration) {
+    public StubMapping tokenExchangeErrorFor(Registry registry) {
         final String json = JsonNodeFactory.instance.objectNode()
                 .put("error", "invalid_client")
                 .put("error_description", "Unknown OAuth client.")
                 .put("error_uri", "https://www.oauth.com/oauth2-servers/access-tokens/access-token-response/")
                 .toPrettyString();
 
-        return tokenExchangeResponseFor(configuration, jsonResponse(json, 401));
+        return tokenExchangeResponseFor(registry, jsonResponse(json, 401));
     }
 
     /**
      * Creates an OAuth2 Token Exchange mapping with a custom response.
      *
-     * @param configuration the client configuration
+     * @param registry the registry being authenticated against
      * @param response response builder
      * @return OAuth2 Token Exchange stub mapping
      */
-    public StubMapping tokenExchangeResponseFor(ArtifactoryConfiguration configuration, ResponseDefinitionBuilder response) {
-        final MappingBuilder mapping = switch (configuration.credentials()) {
+    public StubMapping tokenExchangeResponseFor(Registry registry, ResponseDefinitionBuilder response) {
+        final MappingBuilder mapping = switch (registry.credentials()) {
             case ClientCredentials credentials -> post(urlEqualTo("/oauth/token"))
                     .withFormParam("grant_type", equalTo("client_credentials"))
                     .withFormParam("client_id", equalTo(credentials.clientId()))
@@ -106,12 +127,11 @@ public final class StubFactories {
      * Creates a Service Manifest download mapping with a response that is extracted from the supplied manifest
      * resource location.
      *
-     * @param namespace the namespace owning the service
      * @param service the service whose manifest is downloaded
      * @param manifestLocation location of the manifest resource
      * @return artifact manifest stub mapping
      */
-    public StubMapping manifestResponseFor(String namespace, String service, String manifestLocation) {
+    public StubMapping manifestResponseFor(String service, String manifestLocation) {
         final String manifest;
 
         try {
@@ -120,17 +140,16 @@ public final class StubFactories {
             throw new IllegalStateException("Could not read manifest resource at: " + manifestLocation, ex);
         }
 
-        return manifestResponseFor(namespace, service, jsonResponse(manifest, 200));
+        return manifestResponseFor(service, jsonResponse(manifest, 200));
     }
 
     /**
      * Creates a Service Manifest download mapping with an error result of 404 HTTP status code.
      *
-     * @param namespace the namespace owning the service
      * @param service the service whose manifest is downloaded
      * @return artifact manifest stub mapping
      */
-    public StubMapping manifestNotFoundFor(String namespace, String service) {
+    public StubMapping manifestNotFoundFor(String service) {
         final String json = JsonNodeFactory.instance.objectNode()
                 .put("type", "about:blank")
                 .put("status", 404)
@@ -138,19 +157,18 @@ public final class StubFactories {
                 .put("detail", "Manifest not found.")
                 .toPrettyString();
 
-        return manifestResponseFor(namespace, service, jsonResponse(json, 404));
+        return manifestResponseFor(service, jsonResponse(json, 404));
     }
 
     /**
      * Creates a Service Manifest download mapping with a custom response definition.
      *
-     * @param namespace the namespace owning the service
      * @param service the service whose manifest is downloaded
      * @param response response definition
      * @return artifact manifest stub mapping
      */
-    public StubMapping manifestResponseFor(String namespace, String service, ResponseDefinitionBuilder response) {
-        final String path = "/namespaces/" + namespace + "/services/" + service + "/manifest";
+    public StubMapping manifestResponseFor(String service, ResponseDefinitionBuilder response) {
+        final String path = "/services/" + service + "/manifest";
 
         return stubbing.stubFor(
                 get(urlPathEqualTo(path))
@@ -201,12 +219,11 @@ public final class StubFactories {
     /**
      * Creates a Service release mapping with a custom response.
      *
-     * @param namespace the namespace owning the service
      * @param service the service the release is opened for
      * @param responseLocation response location
      * @return service publish stub mapping
      */
-    public StubMapping serviceReleaseResponseFor(String namespace, String service, String responseLocation) {
+    public StubMapping serviceReleaseResponseFor(String service, String responseLocation) {
         final String response;
 
         try {
@@ -215,19 +232,18 @@ public final class StubFactories {
             throw new IllegalStateException("Could not read manifest publish response at: " + responseLocation, ex);
         }
 
-        return serviceReleaseResponseFor(namespace, service, jsonResponse(response, 200));
+        return serviceReleaseResponseFor(service, jsonResponse(response, 200));
     }
 
     /**
      * Creates a Service release mapping with a custom response definition.
      *
-     * @param namespace the namespace owning the service
      * @param service the service the release is opened for
      * @param response response definition
      * @return service publish stub mapping
      */
-    public StubMapping serviceReleaseResponseFor(String namespace, String service, ResponseDefinitionBuilder response) {
-        final String path = "/namespaces/" + namespace + "/services/" + service + "/releases";
+    public StubMapping serviceReleaseResponseFor(String service, ResponseDefinitionBuilder response) {
+        final String path = "/releases/" + service;
 
         return stubbing.stubFor(
                 post(urlPathEqualTo(path))
@@ -240,16 +256,15 @@ public final class StubFactories {
      * Creates a Service release mapping with a custom response definition, asserting that the
      * submitted release candidates contain an entry for the given artifact with a non-blank checksum.
      *
-     * @param namespace the namespace owning the service
      * @param service the service the release is opened for
      * @param expectedCandidate an artifact expected to be present in the submitted release candidates
      * @param response response definition
      * @return service publish stub mapping
      */
     public StubMapping serviceReleaseResponseFor(
-            String namespace, String service, Artifact expectedCandidate, ResponseDefinitionBuilder response
+            String service, Artifact expectedCandidate, ResponseDefinitionBuilder response
     ) {
-        final String path = "/namespaces/" + namespace + "/services/" + service + "/releases";
+        final String path = "/releases/" + service;
 
         return stubbing.stubFor(
                 post(urlPathEqualTo(path))
@@ -267,7 +282,6 @@ public final class StubFactories {
     /**
      * Creates a Service Release artifact metadata upload mapping with a given response builder.
      *
-     * @param namespace the namespace owning the service
      * @param service the service the release belongs to
      * @param release the service release identifier for which the artifact is uploaded
      * @param artifact the artifact for which metadata is uploaded
@@ -275,13 +289,12 @@ public final class StubFactories {
      * @return upload service release artifact stub mapping
      */
     public StubMapping uploadArtifactResponseFor(
-            String namespace,
             String service,
             String release,
             Artifact artifact,
             ResponseDefinitionBuilder response
     ) {
-        final String path = "/namespaces/" + namespace + "/services/" + service + "/releases/" + release + "/artifacts";
+        final String path = "/releases/" + service + "/" + release + "/artifacts";
 
         return stubbing.stubFor(
                 post(urlPathEqualTo(path))
@@ -298,20 +311,17 @@ public final class StubFactories {
     /**
      * Creates a Service Release completion mapping with a given response builder.
      *
-     * @param namespace the namespace owning the service
      * @param service the service the release belongs to
      * @param release the service release identifier to complete
      * @param response the response builder
      * @return complete service release stub mapping
      */
     public StubMapping completeServiceReleaseResponseFor(
-            String namespace,
             String service,
             String release,
             ResponseDefinitionBuilder response
     ) {
-        final String path = "/namespaces/" + namespace + "/services/" + service +
-                "/releases/" + release + "/complete";
+        final String path = "/releases/" + service + "/" + release + "/complete";
 
         return stubbing.stubFor(
                 post(urlPathEqualTo(path))

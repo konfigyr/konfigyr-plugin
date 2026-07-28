@@ -16,15 +16,14 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
-import java.util.HashMap;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Verifies the Konfigyr plugin publishes a pure library's own artifact directly while skipping the
- * service-release tasks (the {@code com.acme.library/library} fixture has no {@code namespace}
- * configured). These tests are ordered and share build state across methods (no {@code clean} on the
+ * service-release tasks (the {@code com.acme.library/library} fixture never calls {@code service { } }}
+ * at all). These tests are ordered and share build state across methods (no {@code clean} on the
  * second run), so they must stay together and in sequence.
  * <p>
  * This fixture configures the {@code tokenExchange { }} so the OAuth stub must match it, proves the
@@ -47,22 +46,18 @@ class KonfigyrPluginLibraryTest extends AbstractKonfigyrPluginTest {
 
     @BeforeEach
     void setup() throws IOException {
-        final var environment = new HashMap<>(System.getenv());
-        environment.remove("KONFIGYR_NAMESPACE");
-
         runner = GradleRunner.create()
                 .withDebug(false)
                 .forwardOutput()
                 .withPluginClasspath()
-                .withProjectDir(ResourceUtils.loadResource("com.acme.library/library").getFile())
-                .withEnvironment(environment);
+                .withProjectDir(ResourceUtils.loadResource("com.acme.library/library").getFile());
     }
 
     @Test
     @Order(1)
-    @DisplayName("should publish library artifact and skip service release tasks when no namespace is configured")
+    @DisplayName("should publish library artifact and skip service release tasks when service { } is never configured")
     void shouldPublishLibraryArtifact() {
-        stubFactories.tokenExchangeSuccessFor(configuration);
+        stubFactories.tokenExchangeSuccessFor(registry);
         stubFactories.getReleaseExistsResponseFor(LIBRARY, false);
 
         final var publication = JsonNodeFactory.instance.objectNode()
@@ -84,22 +79,22 @@ class KonfigyrPluginLibraryTest extends AbstractKonfigyrPluginTest {
 
         assertThat(result.tasks(TaskOutcome.SUCCESS))
                 .extracting(BuildTask::getPath)
-                .contains(":generateArtifactMetadata", ":publishArtifactMetadata", ":konfigyr");
+                .contains(":generateArtifactMetadata", ":publishArtifactMetadataToKonfigyrCentral", ":konfigyr");
 
         assertThat(result.tasks(TaskOutcome.SKIPPED))
-                .as("Service Release tasks should be skipped, no namespace is configured")
+                .as("Service Release tasks should be skipped, service { } is never configured")
                 .extracting(BuildTask::getPath)
-                .contains(":resolveServiceDependencies", ":createServiceRelease");
+                .contains(":resolveServiceDependencies", ":createServiceReleaseToKonfigyrCentral");
 
         wiremock.verify(1, postRequestedFor(urlPathEqualTo("/artifacts/com.acme/library/1.0.0")));
-        wiremock.verify(0, postRequestedFor(urlPathTemplate("/namespaces/{namespace}/services/{service}/releases")));
+        wiremock.verify(0, postRequestedFor(urlPathTemplate("/releases/{service}")));
     }
 
     @Test
     @Order(2)
     @DisplayName("should cache generated metadata and skip republishing the library artifact on the next execution")
     void shouldCacheLibraryArtifactOnNextExecution() {
-        stubFactories.tokenExchangeSuccessFor(configuration);
+        stubFactories.tokenExchangeSuccessFor(registry);
         stubFactories.getReleaseExistsResponseFor(LIBRARY, true);
 
         BuildResult result = runner
@@ -112,9 +107,9 @@ class KonfigyrPluginLibraryTest extends AbstractKonfigyrPluginTest {
                 .contains(":generateArtifactMetadata");
 
         assertThat(result.tasks(TaskOutcome.SKIPPED))
-                .as("Service Release tasks should still be skipped, no namespace is configured")
+                .as("Service Release tasks should still be skipped, service { } is never configured")
                 .extracting(BuildTask::getPath)
-                .contains(":resolveServiceDependencies", ":createServiceRelease");
+                .contains(":resolveServiceDependencies", ":createServiceReleaseToKonfigyrCentral");
 
         // publishArtifactMetadata declares no outputs, so it always re-executes - but should not
         // re-create a publication once the artifact is already published in the Artifactory

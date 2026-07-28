@@ -14,24 +14,26 @@ import java.util.Collection;
  * multiple projects or modules, reusing one authenticated connection rather than one per project.
  * <p>
  * This interface supports two distinct publishing workflows. Which one applies to a given artifact
- * depends on whether the publishing namespace's {@code groupId} has been verified:
+ * depends on whether the publishing namespace's {@code groupId} has been verified. Neither workflow
+ * takes a namespace as an argument: the namespace is always resolved server-side from the
+ * authenticated access token's claims, never asserted by the caller.
  *
  * <h2>Publishing first-party metadata via a Service Release</h2>
  * <p>
  * Used for artifacts not covered by a verified {@code groupId}. Metadata published this way is
  * scoped to a single namespace and service, it is not added to the shared Artifactory registry.
  * Because a single client instance may be shared across many services (e.g. the modules of a
- * multi-module build), the target {@code namespace} and {@code service} are supplied as
- * arguments to each call below rather than fixed once for the client's lifetime.
+ * multi-module build), the target {@code service} is supplied as an argument to each call below
+ * rather than fixed once for the client's lifetime.
  * <ol>
- *   <li>Call {@link #release(String, String, Collection)} with every artifact discovered on the
+ *   <li>Call {@link #release(String, Collection)} with every artifact discovered on the
  *       classpath that exposes Spring Boot configuration metadata, each paired with a locally
  *       computed checksum. The returned {@link ServiceRelease} reports, per
  *       {@link ServiceReleaseEntry}, whether that artifact still needs its metadata uploaded.</li>
- *   <li>Call {@link #upload(String, String, ServiceRelease, ArtifactMetadata)} for every artifact
+ *   <li>Call {@link #upload(String, ServiceRelease, ArtifactMetadata)} for every artifact
  *       whose entry requires it. Artifacts already covered by the Artifactory, or matching a
  *       checksum already uploaded for this release, do not need to be uploaded again.</li>
- *   <li>Call {@link #complete(String, String, ServiceRelease)} once every required upload has
+ *   <li>Call {@link #complete(String, ServiceRelease)} once every required upload has
  *       succeeded. This becomes the service's current {@link Manifest}.</li>
  * </ol>
  *
@@ -46,7 +48,7 @@ import java.util.Collection;
  *       publication reaches {@code PUBLISHED} or {@code FAILED}.</li>
  * </ol>
  * <p>
- * {@link #getManifest(String, String)} is independent of both workflows, it retrieves a service's
+ * {@link #getManifest(String)} is independent of both workflows, it retrieves a service's
  * currently published manifest and does not need to be called before publishing.
  *
  * @author Vladimir Spasic
@@ -60,28 +62,29 @@ import java.util.Collection;
 public interface ArtifactoryClient {
 
     /**
-     * Retrieves the {@link Manifest} currently published for the given service.
+     * Retrieves the {@link Manifest} currently published for the given service, in the namespace
+     * resolved from the authenticated access token.
      * <p>
-     * The manifest reflects the last release completed via {@link #complete(String, String, ServiceRelease)},
+     * The manifest reflects the last release completed via {@link #complete(String, ServiceRelease)},
      * the artifacts and configuration metadata currently in effect for this service, regardless of
      * whether each entry's {@link ManifestEntry#source()} is {@code LOCAL} (uploaded directly for
      * this service) or {@code ARTIFACTORY} (resolved from the shared registry). This method does not
-     * need to be called before publishing, {@link #release(String, String, Collection)} performs its
+     * need to be called before publishing, {@link #release(String, Collection)} performs its
      * own server-side resolution of what needs uploading.
      * <p>
      * Implementations should perform an HTTP {@code GET} request to the following endpoint:
-     * {@code /namespaces/{namespace}/services/{service}/manifest}.
+     * {@code /services/{service}/manifest}.
      *
-     * @param namespace the namespace owning the service, must not be {@literal null} or blank.
      * @param service the service whose manifest should be retrieved, must not be {@literal null} or blank.
      * @return the current manifest, never {@literal null}.
      * @throws HttpResponseException if communication with the API fails or authentication is invalid.
      */
-    Manifest getManifest(String namespace, String service);
+    Manifest getManifest(String service);
 
     /**
      * Creates a new {@link ServiceRelease} to Konfigyr by submitting the set of release candidate artifacts
-     * that contribute configuration metadata to the application.
+     * that contribute configuration metadata to the application, in the namespace resolved from the
+     * authenticated access token.
      * <p>
      * The provided collection represents all artifacts discovered on the application's classpath that
      * expose Spring Boot configuration metadata. These artifacts are typically detected by the Konfigyr build
@@ -116,9 +119,8 @@ public interface ArtifactoryClient {
      * allows Konfigyr to recompute the configuration property definitions available to the service.
      * <p>
      * Implementations should perform an HTTP {@code POST} request to the following endpoint:
-     * {@code /namespaces/{namespace}/services/{service}/releases}.
+     * {@code /releases/{service}}.
      *
-     * @param namespace the namespace owning the service, must not be {@literal null} or blank.
      * @param service the service this release is opened for, must not be {@literal null} or blank.
      * @param candidates the collection of candidate artifacts discovered in the service classpath
      *                   that provide Spring Boot configuration metadata. Each artifact must contain
@@ -129,12 +131,12 @@ public interface ArtifactoryClient {
      *         {@link ServiceReleaseEntry}; never {@literal null}.
      * @throws HttpResponseException if communication with the API fails or authentication is invalid.
      */
-    ServiceRelease release(String namespace, String service, Collection<? extends ServiceReleaseCandidate> candidates);
+    ServiceRelease release(String service, Collection<? extends ServiceReleaseCandidate> candidates);
 
     /**
      * Uploads the Spring Boot configuration metadata for a single artifact that was declared as a
      * candidate when the given {@link ServiceRelease} was opened via
-     * {@link #release(String, String, Collection)}.
+     * {@link #release(String, Collection)}.
      * <p>
      * The coordinates carried by {@code metadata} must match one of that release's candidates,
      * uploading metadata for an undeclared artifact fails. Only artifacts whose
@@ -147,13 +149,12 @@ public interface ArtifactoryClient {
      * <p>
      * Implementations should perform an HTTP {@code POST} request, with {@code metadata} serialized
      * as the JSON request body, to the following endpoint:
-     * {@code /namespaces/{namespace}/services/{service}/releases/{release}/artifacts}. The artifact's
+     * {@code /releases/{service}/{release}/artifacts}. The artifact's
      * coordinates are carried by the request body, not the URL.
      * <p>
      * On success the server responds with no content, hence the {@code void} return type, there is
      * nothing further for the caller to act on.
      *
-     * @param namespace the namespace owning the service, must not be {@literal null} or blank.
      * @param service the service this release belongs to, must not be {@literal null} or blank.
      * @param release  the service release this upload contributes to, must not be {@literal null}.
      * @param metadata the artifact metadata payload to upload, must not be {@literal null}.
@@ -161,25 +162,24 @@ public interface ArtifactoryClient {
      *                                the release no longer accepts uploads (already released), the
      *                                metadata payload is invalid, or communication with the API fails.
      */
-    void upload(String namespace, String service, ServiceRelease release, ArtifactMetadata metadata);
+    void upload(String service, ServiceRelease release, ArtifactMetadata metadata);
 
     /**
      * Completes the given {@link ServiceRelease}, promoting it to the service's current
      * {@link Manifest}.
      * <p>
-     * Every candidate declared when the release was opened via {@link #release(String, String, Collection)}
+     * Every candidate declared when the release was opened via {@link #release(String, Collection)}
      * must already be resolved: artifacts the Artifactory covers need no action, and every other
      * {@link ServiceReleaseEntry} must have had its metadata submitted via
-     * {@link #upload(String, String, ServiceRelease, ArtifactMetadata)}. If any declared artifact is
+     * {@link #upload(String, ServiceRelease, ArtifactMetadata)}. If any declared artifact is
      * still missing its metadata, the release is not completed and this call fails.
      * <p>
      * On success this becomes the service's current manifest, the next call to
-     * {@link #getManifest(String, String)} reflects the artifacts and metadata submitted in this release.
+     * {@link #getManifest(String)} reflects the artifacts and metadata submitted in this release.
      * <p>
      * Implementations should perform an HTTP {@code POST} request to the following endpoint:
-     * {@code /namespaces/{namespace}/services/{service}/releases/{release}/complete}.
+     * {@code /releases/{service}/{release}/complete}.
      *
-     * @param namespace the namespace owning the service, must not be {@literal null} or blank.
      * @param service the service this release belongs to, must not be {@literal null} or blank.
      * @param release the release to complete, must not be {@literal null}.
      * @return the completed release, with {@link ServiceRelease#state()} {@code RELEASED} and
@@ -188,7 +188,7 @@ public interface ArtifactoryClient {
      *                                release was already completed, or communication with the API
      *                                fails.
      */
-    ServiceRelease complete(String namespace, String service, ServiceRelease release);
+    ServiceRelease complete(String service, ServiceRelease release);
 
     /**
      * Checks if the property metadata for a specific artifact version is already published.

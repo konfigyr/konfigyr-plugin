@@ -1,18 +1,16 @@
 package com.konfigyr.gradle;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.konfigyr.*;
 import com.konfigyr.artifactory.*;
+import org.gradle.api.GradleException;
 import org.gradle.api.artifacts.PublishException;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
-import org.gradle.api.provider.Property;
+import org.gradle.api.provider.MapProperty;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.VisibleForTesting;
-import org.jspecify.annotations.NonNull;
-import tools.jackson.databind.DeserializationFeature;
+import org.jspecify.annotations.NullMarked;
 import tools.jackson.databind.JavaType;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -29,44 +27,58 @@ import java.util.stream.StreamSupport;
 
 /**
  * Gradle {@link BuildService} for interacting with the Konfigyr Artifactory REST API.
+ * <p>
+ * Builds one {@link ArtifactoryClient} per configured {@link Registry}, all sharing a single
+ * {@link ArtifactoryClientFactory}, and therefore a single connection pool and a single
+ * token/discovery cache. Every method that talks to a registry takes its name as the first
+ * argument to select which of those clients to use.
  *
  * @author Vladimir Spasic
  * @since 1.0.0
  * @see ArtifactoryClient
  */
-public abstract class ArtifactoryService implements BuildService<ArtifactoryService.@NonNull Parameters> {
+@NullMarked
+public abstract class ArtifactoryService implements BuildService<ArtifactoryService.Parameters> {
 
     private final Logger logger = Logging.getLogger(ArtifactoryService.class);
 
-    private final ArtifactoryClient client;
+    private final Map<String, ArtifactoryClient> clients;
     private final JsonMapper mapper;
 
     /**
      * Creates a new {@link ArtifactoryService} instance.
      */
     public ArtifactoryService() {
-        this.mapper = JsonMapper.builder()
-                .addModule(new ArtifactoryJacksonModule())
-                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-                .changeDefaultPropertyInclusion(inclusion -> inclusion
-                        .withContentInclusion(JsonInclude.Include.NON_EMPTY)
-                        .withValueInclusion(JsonInclude.Include.NON_EMPTY)
-                )
-                .build();
-        this.client = new DefaultArtifactoryClient(logger, getParameters().getConfiguration().get(), mapper);
+        this.mapper = ArtifactoryClientFactory.createDefaultJsonMapper();
+
+        final ArtifactoryClientFactory factory = new ArtifactoryClientFactory(
+                TransportOptions.builder().userAgent("konfigyr-plugin/gradle").build(),
+                this.mapper
+        );
+
+        final Map<String, Registry> registries = getParameters().getConfigurations().get();
+        final Map<String, ArtifactoryClient> clients = new LinkedHashMap<>(registries.size());
+        registries.forEach((name, registry) -> clients.put(name, factory.create(registry)));
+
+        this.clients = Collections.unmodifiableMap(clients);
     }
 
     @VisibleForTesting
-    ArtifactoryService(ArtifactoryClient client) {
-        this.client = client;
-        this.mapper = JsonMapper.builder()
-                .addModule(new ArtifactoryJacksonModule())
-                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-                .changeDefaultPropertyInclusion(inclusion -> inclusion
-                        .withContentInclusion(JsonInclude.Include.NON_EMPTY)
-                        .withValueInclusion(JsonInclude.Include.NON_EMPTY)
-                )
-                .build();
+    ArtifactoryService(Map<String, ArtifactoryClient> clients) {
+        this.mapper = ArtifactoryClientFactory.createDefaultJsonMapper();
+        this.clients = clients;
+    }
+
+    private ArtifactoryClient resolveClient(String registryName) {
+        final ArtifactoryClient client = clients.get(registryName);
+
+        if (client == null) {
+            throw new GradleException("Registry '" + registryName + "' is not fully configured. Make sure it " +
+                    "declares a 'url' and either 'clientCredentials { }' or 'tokenExchange { }' in the " +
+                    "konfigyr { registries { } } block.");
+        }
+
+        return client;
     }
 
     /**
@@ -204,97 +216,102 @@ public abstract class ArtifactoryService implements BuildService<ArtifactoryServ
     }
 
     /**
-     * Attempts to publish a new {@link ServiceRelease} for the given namespace and service.
+     * Attempts to publish a new {@link ServiceRelease} for the given service, against the named
+     * registry. The namespace owning the service is resolved server-side from the registry's
+     * authenticated access token, not asserted by the caller.
      *
-     * @param namespace the namespace owning the service, cannot be {@literal null}.
+     * @param registryName the registry to publish the release to, cannot be {@literal null}.
      * @param service the service this release is opened for, cannot be {@literal null}.
      * @param candidates the release candidate artifacts to be added to the new release, cannot be {@literal null}.
      * @return the service release, never {@literal null}
      */
-    public ServiceRelease release(@NonNull String namespace, @NonNull String service,
-                                   @NonNull Collection<? extends ServiceReleaseCandidate> candidates) {
-        final ServiceRelease release = client.release(namespace, service, candidates);
+    public ServiceRelease release(String registryName, String service, Collection<? extends ServiceReleaseCandidate> candidates) {
+        final ServiceRelease release = resolveClient(registryName).release(service, candidates);
 
-        logger.info("Successfully created release for service [id={}, state={}] with artifacts: {}",
-                release.id(), release.state(), release.artifacts());
+        logger.info("Successfully created release for service [id={}, state={}] with artifacts: {} on registry {}",
+                release.id(), release.state(), release.artifacts(), registryName);
 
         return release;
     }
 
     /**
-     * Uploads the given {@link ArtifactMetadata} for the given {@link ServiceRelease}. Intended to be
-     * called from a {@link ServiceReleaseArtifactUploadAction}, one artifact per work item.
+     * Uploads the given {@link ArtifactMetadata} for the given {@link ServiceRelease}, against the
+     * named registry. Intended to be called from a {@link ServiceReleaseArtifactUploadAction}, one
+     * artifact per work item.
      *
-     * @param namespace the namespace owning the service, cannot be {@literal null}.
+     * @param registryName the registry the release was opened against, cannot be {@literal null}.
      * @param service the service this release belongs to, cannot be {@literal null}.
      * @param release the service release this upload contributes to, cannot be {@literal null}.
      * @param metadata the artifact metadata payload to upload, cannot be {@literal null}.
      * @throws PublishException if the upload fails.
      */
-    public void upload(@NonNull String namespace, @NonNull String service,
-                        @NonNull ServiceRelease release, @NonNull ArtifactMetadata metadata) {
+    public void upload(String registryName, String service, ServiceRelease release, ArtifactMetadata metadata) {
         final String coordinates = formatCoordinates(metadata, '.');
 
         if (logger.isDebugEnabled()) {
-            logger.debug("Attempting to upload Artifact({}) metadata for service release {}", coordinates, release.id());
+            logger.debug("Attempting to upload Artifact({}) metadata for service release {} on registry {}",
+                    coordinates, release.id(), registryName);
         }
 
         try {
-            client.upload(namespace, service, release, metadata);
+            resolveClient(registryName).upload(service, release, metadata);
         } catch (Exception ex) {
-            throw new PublishException("Failed to upload Artifact(%s) metadata for service release %s"
-                    .formatted(coordinates, release.id()), ex);
+            throw new PublishException("Failed to upload Artifact(%s) metadata for service release %s on registry %s"
+                    .formatted(coordinates, release.id(), registryName), ex);
         }
 
-        logger.lifecycle("Successfully uploaded Artifact({}) metadata for service release {}", coordinates, release.id());
+        logger.lifecycle("Successfully uploaded Artifact({}) metadata for service release {} on registry {}",
+                coordinates, release.id(), registryName);
     }
 
     /**
-     * Completes the given {@link ServiceRelease}, promoting it to the service's current {@link Manifest}.
-     * Every {@link ServiceReleaseEntry} requiring an upload must already have been uploaded via
-     * {@link #upload(String, String, ServiceRelease, ArtifactMetadata)} before this is called.
+     * Completes the given {@link ServiceRelease}, promoting it to the service's current {@link Manifest}
+     * on the named registry. Every {@link ServiceReleaseEntry} requiring an upload must already have
+     * been uploaded via {@link #upload(String, String, ServiceRelease, ArtifactMetadata)}
+     * before this is called.
      *
-     * @param namespace the namespace owning the service, cannot be {@literal null}.
+     * @param registryName the registry the release was opened against, cannot be {@literal null}.
      * @param service the service this release belongs to, cannot be {@literal null}.
      * @param release the release to complete, cannot be {@literal null}.
      * @return the completed release, never {@literal null}.
      * @throws PublishException if the release could not be completed.
      */
-    @NonNull
-    public ServiceRelease complete(@NonNull String namespace, @NonNull String service, @NonNull ServiceRelease release) {
+    public ServiceRelease complete(String registryName, String service, ServiceRelease release) {
         final ServiceRelease completed;
 
         try {
-            completed = client.complete(namespace, service, release);
+            completed = resolveClient(registryName).complete(service, release);
         } catch (Exception ex) {
-            throw new PublishException("Failed to complete service release " + release.id(), ex);
+            throw new PublishException("Failed to complete service release " + release.id() + " on registry " + registryName, ex);
         }
 
-        logger.info("Successfully completed service release [id={}, state={}] with artifacts: {}",
-                completed.id(), completed.state(), completed.artifacts());
+        logger.info("Successfully completed service release [id={}, state={}] with artifacts: {} on registry {}",
+                completed.id(), completed.state(), completed.artifacts(), registryName);
 
         return completed;
     }
 
     /**
-     * Starts the publication process for the given {@link ArtifactMetadata}. This method would post the
-     * metadata to the Konfigyr Artifactory and then poll the service until the publication state is either
-     * successfully published or failed.
+     * Starts the publication process for the given {@link ArtifactMetadata} against the named
+     * registry. This method would post the metadata to the Konfigyr Artifactory and then poll the
+     * service until the publication state is either successfully published or failed.
      *
+     * @param registryName the registry to publish the artifact metadata to, cannot be {@literal null}.
      * @param metadata the artifact metadata to publish, cannot be {@literal null}.
      * @param timeout the maximum time to wait for a successful poll of the release, cannot be {@literal null}.
      * @param interval the time interval between consecutive polling attempts, cannot be {@literal null}.
      * @throws PublishException if the poll process timed out or the artifact metadata upload fails.
      */
-    public void publish(@NonNull ArtifactMetadata metadata, @NonNull Duration timeout, @NonNull Duration interval) {
+    public void publish(String registryName, ArtifactMetadata metadata, Duration timeout, Duration interval) {
+        final ArtifactoryClient client = resolveClient(registryName);
         final String coordinates = formatCoordinates(metadata, '.');
 
         if (logger.isDebugEnabled()) {
-            logger.debug("Attempting to publish artifact metadata for Artifact({})", coordinates);
+            logger.debug("Attempting to publish artifact metadata for Artifact({}) on registry {}", coordinates, registryName);
         }
 
         if (client.isPublished(metadata)) {
-            logger.info("Artifact({}) is already published in the Artifactory", coordinates);
+            logger.info("Artifact({}) is already published in the Artifactory on registry {}", coordinates, registryName);
             return;
         }
 
@@ -303,7 +320,8 @@ public abstract class ArtifactoryService implements BuildService<ArtifactoryServ
         try {
             publication = client.publish(metadata);
         } catch (Exception ex) {
-            throw new PublishException("Failed to upload Artifact(%s) to Artifactory".formatted(coordinates), ex);
+            throw new PublishException("Failed to upload Artifact(%s) to Artifactory on registry %s"
+                    .formatted(coordinates, registryName), ex);
         }
 
         final BackOffExecution execution = new BackOffExecution(interval.toMillis(), timeout.toMillis());
@@ -312,11 +330,11 @@ public abstract class ArtifactoryService implements BuildService<ArtifactoryServ
             final long backOff = execution.nextBackOff();
 
             if (backOff == BackOffExecution.STOP) {
-                throw new PublishException("Publication is still pending for Artifact(%s) after polling timeout is exceeded"
-                        .formatted(coordinates));
+                throw new PublishException("Publication is still pending for Artifact(%s) on registry %s after polling timeout is exceeded"
+                        .formatted(coordinates, registryName));
             }
 
-            logger.info("Artifact({}) is not yet published, polling for status update...", coordinates);
+            logger.info("Artifact({}) is not yet published on registry {}, polling for status update...", coordinates, registryName);
 
             try {
                 Thread.sleep(backOff);
@@ -329,13 +347,14 @@ public abstract class ArtifactoryService implements BuildService<ArtifactoryServ
         }
 
         if (publication.state() == PublicationState.PUBLISHED) {
-            logger.lifecycle("Publication has been successfully processed for Artifact({})", coordinates);
+            logger.lifecycle("Publication has been successfully processed for Artifact({}) on registry {}", coordinates, registryName);
         } else {
-            logger.warn("Could not create publication for Artifact({}) with errors: {}", coordinates, publication.errors());
+            logger.warn("Could not create publication for Artifact({}) on registry {} with errors: {}",
+                    coordinates, registryName, publication.errors());
         }
     }
 
-    static URLClassLoader createClassLoader(@NonNull Iterable<? extends File> files) {
+    static URLClassLoader createClassLoader(Iterable<? extends File> files) {
         final URL[] classpath = StreamSupport.stream(files.spliterator(), false)
                 .map(file -> {
                     try {
@@ -356,7 +375,7 @@ public abstract class ArtifactoryService implements BuildService<ArtifactoryServ
 
     interface Parameters extends BuildServiceParameters {
 
-        Property<@NotNull ArtifactoryConfiguration> getConfiguration();
+        MapProperty<String, Registry> getConfigurations();
 
     }
 

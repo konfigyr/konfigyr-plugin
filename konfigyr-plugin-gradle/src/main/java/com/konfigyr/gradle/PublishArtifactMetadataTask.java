@@ -18,7 +18,7 @@ import java.time.Duration;
  * <p>
  * If this project's own jar does not expose Spring Boot configuration metadata, this task has
  * nothing to publish and does nothing. Publishing requires the namespace holding this project's
- * {@code groupId} to be verified by the Konfigyr Artifactory — if it isn't, the underlying call
+ * {@code groupId} to be verified by the Konfigyr Artifactory, if it isn't, the underlying call
  * fails with an {@link HttpResponseException}, which this task lets propagate rather than
  * special-casing.
  *
@@ -57,6 +57,24 @@ public abstract class PublishArtifactMetadataTask extends DefaultTask {
     public abstract RegularFileProperty getMetadata();
 
     /**
+     * The name of the registry this task publishes to.
+     *
+     * @return the registry name, never {@literal null}.
+     */
+    @Input
+    public abstract Property<@NonNull String> getRegistryName();
+
+    /**
+     * Whether the registry named by {@link #getRegistryName()} is fully configured (a {@code url} and
+     * either {@code clientCredentials { } } }} or {@code tokenExchange { } } }} grant). See the
+     * {@code onlyIf} predicate this task is registered with in {@link KonfigyrPlugin}.
+     *
+     * @return {@literal true} if this task should run.
+     */
+    @Input
+    public abstract Property<Boolean> getRegistryConfigured();
+
+    /**
      * The maximum time in milliseconds to wait for a successful poll of a release.
      *
      * @return the release timeout, never {@literal null}.
@@ -86,7 +104,7 @@ public abstract class PublishArtifactMetadataTask extends DefaultTask {
         final ArtifactoryService service = getService().get();
         final ArtifactMetadata metadata = service.readArtifactMetadata(metadataFile);
 
-        service.publish(metadata, getReleaseTimeout().get(), getReleasePollingInterval().get());
+        service.publish(getRegistryName().get(), metadata, getReleaseTimeout().get(), getReleasePollingInterval().get());
     }
 
 }

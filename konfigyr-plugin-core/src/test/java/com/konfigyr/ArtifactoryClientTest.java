@@ -24,10 +24,9 @@ import static com.github.tomakehurst.wiremock.client.WireMock.*;
 
 class ArtifactoryClientTest extends AbstractWiremockTest {
 
-    static final String NAMESPACE = "konfigyr";
     static final String SERVICE = "konfigyr-test-service";
 
-    final ArtifactoryConfiguration configuration = configuration()
+    final Registry registry = registry()
             .credentials(new ClientCredentials("client-id", "client-secret"))
             .build();
 
@@ -35,16 +34,16 @@ class ArtifactoryClientTest extends AbstractWiremockTest {
 
     @BeforeEach
     void setup() {
-        client = new DefaultArtifactoryClient(configuration);
+        client = clientFactory().create(registry);
     }
 
     @Test
     @DisplayName("should retrieve artifact manifest for service")
     void retrieveManifest() {
-        stubFactories.tokenExchangeSuccessFor(configuration);
-        stubFactories.manifestResponseFor(NAMESPACE, SERVICE, "konfigyr-test-service-manifest.json");
+        stubFactories.tokenExchangeSuccessFor(registry);
+        stubFactories.manifestResponseFor(SERVICE, "konfigyr-test-service-manifest.json");
 
-        assertThatObject(client.getManifest(NAMESPACE, SERVICE))
+        assertThatObject(client.getManifest(SERVICE))
                 .isNotNull()
                 .returns("6274e1984052", Manifest::id)
                 .returns("konfigyr-test-service", Manifest::name)
@@ -63,21 +62,21 @@ class ArtifactoryClientTest extends AbstractWiremockTest {
     @Test
     @DisplayName("should fail to retrieve artifact manifest for service when access token can not be obtained")
     void unauthenticatedRetrieveManifest() {
-        stubFactories.manifestResponseFor(NAMESPACE, SERVICE, "konfigyr-test-service-manifest.json");
+        stubFactories.manifestResponseFor(SERVICE, "konfigyr-test-service-manifest.json");
 
         assertThatExceptionOfType(HttpResponseException.class)
-                .isThrownBy(() -> client.getManifest(NAMESPACE, SERVICE))
+                .isThrownBy(() -> client.getManifest(SERVICE))
                 .withMessageContaining("Could not obtain OAuth2 access token");
     }
 
     @Test
     @DisplayName("should fail to retrieve artifact manifest for service that does not exist")
     void retrieveUnknownManifest() {
-        stubFactories.tokenExchangeSuccessFor(configuration);
-        stubFactories.manifestNotFoundFor(NAMESPACE, SERVICE);
+        stubFactories.tokenExchangeSuccessFor(registry);
+        stubFactories.manifestNotFoundFor(SERVICE);
 
         assertThatExceptionOfType(HttpResponseException.class)
-                .isThrownBy(() -> client.getManifest(NAMESPACE, SERVICE))
+                .isThrownBy(() -> client.getManifest(SERVICE))
                 .withMessageContaining("Konfigyr REST API returned a 4xx HTTP Status code")
                 .withMessageContaining("Manifest not found.")
                 .satisfies(assertResponseError(404))
@@ -87,14 +86,14 @@ class ArtifactoryClientTest extends AbstractWiremockTest {
     @Test
     @DisplayName("should fail to retrieve artifact manifest for service due to invalid response")
     void retrieveInvalidManifest() {
-        stubFactories.tokenExchangeSuccessFor(configuration);
-        stubFactories.manifestResponseFor(NAMESPACE, SERVICE, WireMock.aResponse()
+        stubFactories.tokenExchangeSuccessFor(registry);
+        stubFactories.manifestResponseFor(SERVICE, WireMock.aResponse()
                 .withBody("\"invalid response\"")
                 .withStatus(200)
         );
 
         assertThatIllegalStateException()
-                .isThrownBy(() -> client.getManifest(NAMESPACE, SERVICE))
+                .isThrownBy(() -> client.getManifest(SERVICE))
                 .withMessageContaining("Failed to convert HTTP response to: %s", Manifest.class.getTypeName())
                 .withCauseInstanceOf(JacksonException.class);
     }
@@ -102,23 +101,23 @@ class ArtifactoryClientTest extends AbstractWiremockTest {
     @Test
     @DisplayName("should fail to retrieve artifact manifest for service due to authentication error")
     void retrieveManifestAuthenticationError() {
-        stubFactories.tokenExchangeSuccessFor(configuration);
-        stubFactories.manifestResponseFor(NAMESPACE, SERVICE, WireMock.aResponse().withStatus(401));
+        stubFactories.tokenExchangeSuccessFor(registry);
+        stubFactories.manifestResponseFor(SERVICE, WireMock.aResponse().withStatus(401));
 
         assertThatExceptionOfType(HttpResponseException.class)
-                .isThrownBy(() -> client.getManifest(NAMESPACE, SERVICE))
-                .withMessageContaining("Invalid Konfigyr Access Token provided")
+                .isThrownBy(() -> client.getManifest(SERVICE))
+                .withMessageContaining("Invalid or an expired Konfigyr Access Token provided")
                 .satisfies(assertResponseError(401));
     }
 
     @Test
     @DisplayName("should fail to retrieve artifact manifest for service due to authorization error")
     void retrieveManifestAuthorizationError() {
-        stubFactories.tokenExchangeSuccessFor(configuration);
-        stubFactories.manifestResponseFor(NAMESPACE, SERVICE, WireMock.aResponse().withStatus(403));
+        stubFactories.tokenExchangeSuccessFor(registry);
+        stubFactories.manifestResponseFor(SERVICE, WireMock.aResponse().withStatus(403));
 
         assertThatExceptionOfType(HttpResponseException.class)
-                .isThrownBy(() -> client.getManifest(NAMESPACE, SERVICE))
+                .isThrownBy(() -> client.getManifest(SERVICE))
                 .withMessageContaining("Your Konfigyr Access Token does not have sufficient permission")
                 .satisfies(assertResponseError(403));
     }
@@ -126,13 +125,13 @@ class ArtifactoryClientTest extends AbstractWiremockTest {
     @Test
     @DisplayName("should fail to retrieve artifact manifest for service due to server connection error")
     void retrieveManifestConnectionError() {
-        stubFactories.tokenExchangeSuccessFor(configuration);
-        stubFactories.manifestResponseFor(NAMESPACE, SERVICE, WireMock.aResponse()
+        stubFactories.tokenExchangeSuccessFor(registry);
+        stubFactories.manifestResponseFor(SERVICE, WireMock.aResponse()
                 .withFault(Fault.CONNECTION_RESET_BY_PEER)
         );
 
         assertThatExceptionOfType(UncheckedIOException.class)
-                .isThrownBy(() -> client.getManifest(NAMESPACE, SERVICE))
+                .isThrownBy(() -> client.getManifest(SERVICE))
                 .withMessageContaining("Error occurred while establishing connection")
                 .withCauseInstanceOf(IOException.class);
     }
@@ -140,15 +139,15 @@ class ArtifactoryClientTest extends AbstractWiremockTest {
     @Test
     @DisplayName("should publish new service release with artifacts to Artifactory")
     void releaseServiceManifest() {
-        stubFactories.tokenExchangeSuccessFor(configuration);
-        stubFactories.serviceReleaseResponseFor(NAMESPACE, SERVICE, "konfigyr-release-service-manifest.json");
+        stubFactories.tokenExchangeSuccessFor(registry);
+        stubFactories.serviceReleaseResponseFor(SERVICE, "konfigyr-release-service-manifest.json");
 
         final var artifacts = List.of(
                 ServiceReleaseCandidate.of("com.konfigyr", "konfigyr-artifactory", "1.0.0", "checksum"),
                 ServiceReleaseCandidate.of("com.konfigyr", "konfigyr-crypto-api", "1.0.0", "checksum")
         );
 
-        final var release = client.release(NAMESPACE, SERVICE, artifacts);
+        final var release = client.release(SERVICE, artifacts);
 
         assertThatObject(release)
                 .isNotNull()
@@ -169,11 +168,11 @@ class ArtifactoryClientTest extends AbstractWiremockTest {
     @Test
     @DisplayName("should fail to publish new service release due to validation errors")
     void releaseServiceManifestBadRequest() {
-        stubFactories.tokenExchangeSuccessFor(configuration);
-        stubFactories.serviceReleaseResponseFor(NAMESPACE, SERVICE, WireMock.aResponse().withStatus(400));
+        stubFactories.tokenExchangeSuccessFor(registry);
+        stubFactories.serviceReleaseResponseFor(SERVICE, WireMock.aResponse().withStatus(400));
 
         assertThatExceptionOfType(HttpResponseException.class)
-                .isThrownBy(() -> client.release(NAMESPACE, SERVICE, List.of()))
+                .isThrownBy(() -> client.release(SERVICE, List.of()))
                 .withMessageContaining("Konfigyr REST API returned a 4xx HTTP Status")
                 .satisfies(assertResponseError(400));
     }
@@ -196,13 +195,13 @@ class ArtifactoryClientTest extends AbstractWiremockTest {
                 .state(ReleaseState.PENDING)
                 .build();
 
-        stubFactories.tokenExchangeSuccessFor(configuration);
-        stubFactories.uploadArtifactResponseFor(NAMESPACE, SERVICE, release.id(), artifact, WireMock.aResponse().withStatus(201));
+        stubFactories.tokenExchangeSuccessFor(registry);
+        stubFactories.uploadArtifactResponseFor(SERVICE, release.id(), artifact, WireMock.aResponse().withStatus(201));
 
-        assertThatNoException().isThrownBy(() -> client.upload(NAMESPACE, SERVICE, release, metadata));
+        assertThatNoException().isThrownBy(() -> client.upload(SERVICE, release, metadata));
 
         wiremock.verify(postRequestedFor(urlPathEqualTo(
-                "/namespaces/konfigyr/services/konfigyr-test-service/releases/6274e1984052/artifacts"))
+                "/releases/konfigyr-test-service/6274e1984052/artifacts"))
                 .withRequestBody(equalToJson(
                         "{\"groupId\":\"com.konfigyr\",\"artifactId\":\"konfigyr-crypto-api\",\"version\":\"1.0.0\"," +
                                 "\"properties\":[{\"name\":\"konfigyr.message\",\"typeName\":\"java.lang.String\"," +
@@ -230,11 +229,11 @@ class ArtifactoryClientTest extends AbstractWiremockTest {
                 .state(ReleaseState.PENDING)
                 .build();
 
-        stubFactories.tokenExchangeSuccessFor(configuration);
-        stubFactories.uploadArtifactResponseFor(NAMESPACE, SERVICE, release.id(), artifact, WireMock.aResponse().withStatus(500));
+        stubFactories.tokenExchangeSuccessFor(registry);
+        stubFactories.uploadArtifactResponseFor(SERVICE, release.id(), artifact, WireMock.aResponse().withStatus(500));
 
         assertThatExceptionOfType(HttpResponseException.class)
-                .isThrownBy(() -> client.upload(NAMESPACE, SERVICE, release, metadata))
+                .isThrownBy(() -> client.upload(SERVICE, release, metadata))
                 .withMessageContaining("Konfigyr REST API returned a 5xx HTTP Status code")
                 .satisfies(assertResponseError(500));
     }
@@ -255,10 +254,10 @@ class ArtifactoryClientTest extends AbstractWiremockTest {
                 .put("publishedAt", Instant.now().toString())
                 .toPrettyString();
 
-        stubFactories.tokenExchangeSuccessFor(configuration);
-        stubFactories.completeServiceReleaseResponseFor(NAMESPACE, SERVICE, release.id(), jsonResponse(json, 200));
+        stubFactories.tokenExchangeSuccessFor(registry);
+        stubFactories.completeServiceReleaseResponseFor(SERVICE, release.id(), jsonResponse(json, 200));
 
-        assertThatObject(client.complete(NAMESPACE, SERVICE, release))
+        assertThatObject(client.complete(SERVICE, release))
                 .isNotNull()
                 .returns(release.id(), ServiceRelease::id)
                 .returns(ReleaseState.RELEASED, ServiceRelease::state)
@@ -275,11 +274,11 @@ class ArtifactoryClientTest extends AbstractWiremockTest {
                 .state(ReleaseState.PENDING)
                 .build();
 
-        stubFactories.tokenExchangeSuccessFor(configuration);
-        stubFactories.completeServiceReleaseResponseFor(NAMESPACE, SERVICE, release.id(), WireMock.aResponse().withStatus(409));
+        stubFactories.tokenExchangeSuccessFor(registry);
+        stubFactories.completeServiceReleaseResponseFor(SERVICE, release.id(), WireMock.aResponse().withStatus(409));
 
         assertThatExceptionOfType(HttpResponseException.class)
-                .isThrownBy(() -> client.complete(NAMESPACE, SERVICE, release))
+                .isThrownBy(() -> client.complete(SERVICE, release))
                 .withMessageContaining("Konfigyr REST API returned a 4xx HTTP Status code")
                 .satisfies(assertResponseError(409));
     }
@@ -289,7 +288,7 @@ class ArtifactoryClientTest extends AbstractWiremockTest {
     void releaseExists() {
         final var artifact = Artifact.of("com.konfigyr", "konfigyr-crypto-jdbc", "1.0.0");
 
-        stubFactories.tokenExchangeSuccessFor(configuration);
+        stubFactories.tokenExchangeSuccessFor(registry);
         stubFactories.getReleaseExistsResponseFor(artifact, true);
 
         assertThat(client.isPublished(artifact))
@@ -301,7 +300,7 @@ class ArtifactoryClientTest extends AbstractWiremockTest {
     void releaseDoesNotExists() {
         final var artifact = Artifact.of("com.konfigyr", "konfigyr-crypto-jdbc", "1.0.0");
 
-        stubFactories.tokenExchangeSuccessFor(configuration);
+        stubFactories.tokenExchangeSuccessFor(registry);
         stubFactories.getReleaseExistsResponseFor(artifact, false);
 
         assertThat(client.isPublished(artifact))
@@ -313,7 +312,7 @@ class ArtifactoryClientTest extends AbstractWiremockTest {
     void releaseExistsFailed() {
         final var artifact = Artifact.of("com.konfigyr", "konfigyr-crypto-jdbc", "1.0.0");
 
-        stubFactories.tokenExchangeSuccessFor(configuration);
+        stubFactories.tokenExchangeSuccessFor(registry);
         stubFactories.getReleaseExistsResponseFor(
                 WireMock.urlPathTemplate("/artifacts/{groupId}/{artifactId}/{version}"),
                 WireMock.aResponse().withStatus(500)
@@ -349,7 +348,7 @@ class ArtifactoryClientTest extends AbstractWiremockTest {
                         ).build()
         ));
 
-        stubFactories.tokenExchangeSuccessFor(configuration);
+        stubFactories.tokenExchangeSuccessFor(registry);
         stubFactories.createPublicationResponseFor(metadata, ReleaseState.PENDING);
 
         assertThatObject(client.publish(metadata))
@@ -396,7 +395,7 @@ class ArtifactoryClientTest extends AbstractWiremockTest {
                         ).build()
         ));
 
-        stubFactories.tokenExchangeSuccessFor(configuration);
+        stubFactories.tokenExchangeSuccessFor(registry);
         stubFactories.createReleaseErrorResponseFor(metadata);
 
         assertThatExceptionOfType(HttpResponseException.class)
@@ -412,7 +411,7 @@ class ArtifactoryClientTest extends AbstractWiremockTest {
     void retrievePublication() {
         final var artifact = Artifact.of("com.konfigyr", "konfigyr-crypto-jdbc", "1.0.0");
 
-        stubFactories.tokenExchangeSuccessFor(configuration);
+        stubFactories.tokenExchangeSuccessFor(registry);
         stubFactories.getPublicationResponseFor(artifact, ReleaseState.PENDING);
 
         assertThatObject(client.getPublication(artifact))
@@ -437,7 +436,7 @@ class ArtifactoryClientTest extends AbstractWiremockTest {
     void retrieveUnknownRelease() {
         final var artifact = Artifact.of("com.konfigyr", "konfigyr-crypto-jdbc", "1.0.0");
 
-        stubFactories.tokenExchangeSuccessFor(configuration);
+        stubFactories.tokenExchangeSuccessFor(registry);
         stubFactories.publicationNotFoundFor(artifact);
 
         assertThatExceptionOfType(HttpResponseException.class)

@@ -38,7 +38,7 @@ class KonfigyrPluginMultiProjectTest extends AbstractKonfigyrPluginTest {
     @Test
     @DisplayName("should execute the configured Konfigyr upload task in Gradle multi project setup")
     void assertPluginExecutedInMultiproject() throws IOException {
-        stubFactories.tokenExchangeSuccessFor(configuration);
+        stubFactories.tokenExchangeSuccessFor(registry);
 
         stubFactories.getReleaseExistsResponseFor(
                 urlPathTemplate("/artifacts/{groupId}/{artifactId}/{version}"),
@@ -77,7 +77,7 @@ class KonfigyrPluginMultiProjectTest extends AbstractKonfigyrPluginTest {
         // one stub answers all four projects (core/customers/inventory/orders), so the body matcher
         // only pins the groupId shared by all of them plus a non-blank checksum, not a specific artifactId
         wiremock.stubFor(
-                post(urlPathTemplate("/namespaces/{namespace}/services/{service}/releases"))
+                post(urlPathTemplate("/releases/{service}"))
                         .withHeader("Authorization", matching("^Bearer\\s+([a-zA-Z0-9-._~+/]+=*)$"))
                         .withRequestBody(matchingJsonPath("$[?(@.groupId=='com.acme' && @.checksum)]"))
                         .willReturn(jsonResponse(release, 200))
@@ -92,12 +92,12 @@ class KonfigyrPluginMultiProjectTest extends AbstractKonfigyrPluginTest {
                 .toPrettyString();
 
         wiremock.stubFor(
-                post(urlPathTemplate("/namespaces/{namespace}/services/{service}/releases/{release}/complete"))
+                post(urlPathTemplate("/releases/{service}/{release}/complete"))
                         .withHeader("Authorization", matching("^Bearer\\s+([a-zA-Z0-9-._~+/]+=*)$"))
                         .willReturn(jsonResponse(completed, 200))
         );
 
-        final File projectDir = ResourceUtils.loadResource("com.acme.multiproject").getFile();
+        final File projectDir = ResourceUtils.loadResource("com.acme.multiproject/multiproject").getFile();
 
         BuildResult result = GradleRunner.create()
                 .withDebug(true)
@@ -119,24 +119,24 @@ class KonfigyrPluginMultiProjectTest extends AbstractKonfigyrPluginTest {
                 .extracting(BuildTask::getPath)
                 .contains(
                         ":core:generateArtifactMetadata",
-                        ":core:publishArtifactMetadata",
+                        ":core:publishArtifactMetadataToKonfigyrCentral",
                         ":core:resolveServiceDependencies",
-                        ":core:createServiceRelease",
+                        ":core:createServiceReleaseToKonfigyrCentral",
                         ":core:konfigyr",
                         ":customers:generateArtifactMetadata",
-                        ":customers:publishArtifactMetadata",
+                        ":customers:publishArtifactMetadataToKonfigyrCentral",
                         ":customers:resolveServiceDependencies",
-                        ":customers:createServiceRelease",
+                        ":customers:createServiceReleaseToKonfigyrCentral",
                         ":customers:konfigyr",
                         ":inventory:generateArtifactMetadata",
-                        ":inventory:publishArtifactMetadata",
+                        ":inventory:publishArtifactMetadataToKonfigyrCentral",
                         ":inventory:resolveServiceDependencies",
-                        ":inventory:createServiceRelease",
+                        ":inventory:createServiceReleaseToKonfigyrCentral",
                         ":inventory:konfigyr",
                         ":orders:generateArtifactMetadata",
-                        ":orders:publishArtifactMetadata",
+                        ":orders:publishArtifactMetadataToKonfigyrCentral",
                         ":orders:resolveServiceDependencies",
-                        ":orders:createServiceRelease",
+                        ":orders:createServiceReleaseToKonfigyrCentral",
                         ":orders:konfigyr"
                 );
 

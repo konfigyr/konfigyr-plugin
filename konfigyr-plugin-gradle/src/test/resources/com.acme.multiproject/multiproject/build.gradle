@@ -30,18 +30,20 @@ subprojects {
     }
 
     konfigyr {
-        host = "${wiremock}"
-        tokenUri = "${wiremock}/oauth/token"
-        clientCredentials {
-            clientId = 'konfigyr-client-id'
-            clientSecret = 'konfigyr-client-secret'
+        registries {
+            konfigyrCentral {
+                url = uri("${wiremock}")
+                clientCredentials {
+                    clientId = 'konfigyr-client-id'
+                    clientSecret = 'konfigyr-client-secret'
+                }
+            }
         }
         publish {
             pollTimeout = 3000
             pollInterval = 200
         }
         service {
-            namespace = 'konfigyr'
         }
     }
 }

@@ -1,6 +1,6 @@
 package com.konfigyr.gradle;
 
-import com.konfigyr.ArtifactoryConfiguration;
+import com.konfigyr.Registry;
 import com.konfigyr.artifactory.Artifact;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
@@ -12,6 +12,7 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.NullMarked;
@@ -44,22 +45,29 @@ public class KonfigyrPlugin implements Plugin<@NonNull Project> {
         // register the transform action that would generate the artifact metadata for each dependency
         registerArtifactMetadataTransform(project, service);
 
-        // register tasks...
+        // register tasks that are registry-independent, run once per project regardless of
+        // how many registries are declared for the plugin
         final Provider<GenerateArtifactMetadataTask> generateMetadataTask =
                 registerGenerateMetadataTask(project, service);
-        final Provider<PublishArtifactMetadataTask> publishMetadataTask =
-                registerPublishMetadataTask(project, extension, service, generateMetadataTask);
         final Provider<ResolveServiceDependenciesTask> resolveDependenciesTask =
                 registerResolveServiceDependenciesTask(project, extension, service);
-        final Provider<CreateServiceReleaseTask> createReleaseTask =
-                registerCreateServiceReleaseTask(project, extension, service, generateMetadataTask, resolveDependenciesTask);
 
-        // register konfigyr task that would be used as the main entrypoint...
-        project.getTasks().register(PLUGIN_NAME, DefaultTask.class, task -> {
+        // register konfigyr meta-task that would be used as the main entrypoint...
+        final TaskProvider<DefaultTask> meta = project.getTasks().register(PLUGIN_NAME, DefaultTask.class, task -> {
             task.setGroup(PLUGIN_NAME);
             task.setDescription("Task that would generate and publish the Konfigyr artifact metadata for your project");
+        });
 
-            task.dependsOn(publishMetadataTask, createReleaseTask);
+        // ...and one publish/release task pair per registry this project declares, registered lazily as
+        // each registry is added to the container, so declaration order relative to plugin application
+        // doesn't matter.
+        extension.getRegistries().all(registry -> {
+            final Provider<PublishArtifactMetadataTask> publishMetadataTask =
+                    registerPublishMetadataTask(project, extension, service, generateMetadataTask, registry);
+            final Provider<CreateServiceReleaseTask> createReleaseTask =
+                    registerCreateServiceReleaseTask(project, extension, service, generateMetadataTask, resolveDependenciesTask, registry);
+
+            meta.configure(task -> task.dependsOn(publishMetadataTask, createReleaseTask));
         });
     }
 
@@ -67,9 +75,8 @@ public class KonfigyrPlugin implements Plugin<@NonNull Project> {
      * Finds or creates the {@link KonfigyrExtension} on the root project.
      * <p>
      * Used by {@link #registerArtifactoryService} to source the shared {@link ArtifactoryService}'s
-     * connection configuration from the root project when it's actually configured there, since the
-     * underlying {@code BuildService} is a build-wide singleton and can only ever have one
-     * configuration for the whole build.
+     * per-registry connection settings from the root project when it's actually configured there,
+     * since a registry's connection is shared build-wide and can only ever have one configuration.
      */
     @NullMarked
     private static KonfigyrExtension resolveRootExtension(Project project) {
@@ -87,8 +94,8 @@ public class KonfigyrPlugin implements Plugin<@NonNull Project> {
      * Registers the shared {@link ArtifactoryService}, exactly once for the whole build.
      * <p>
      * {@code registerIfAbsent} only honors the configuration action for the first project whose
-     * {@code apply()} triggers it — every subsequent call with the same name is a no-op. The
-     * connection configuration itself, however, is resolved lazily via {@link #resolveArtifactoryConfiguration},
+     * {@code apply()} triggers it — every later call with the same name is a no-op. The
+     * connection configuration itself, however, is resolved lazily via {@link #resolveRegistries},
      * which is only evaluated once the {@code BuildService} is actually realized (after every project
      * has been configured) — making the outcome deterministic regardless of which project's
      * {@code apply()} happened to trigger the registration.
@@ -96,69 +103,100 @@ public class KonfigyrPlugin implements Plugin<@NonNull Project> {
     @NullMarked
     private static Provider<ArtifactoryService> registerArtifactoryService(Project project) {
         return project.getGradle().getSharedServices().registerIfAbsent(PLUGIN_NAME, ArtifactoryService.class, spec -> {
-            spec.parameters(parameters -> parameters.getConfiguration().set(
-                    project.provider(() -> resolveArtifactoryConfiguration(project))
+            spec.parameters(parameters -> parameters.getConfigurations().set(
+                    project.provider(() -> resolveRegistries(project))
             ));
         });
     }
 
     /**
-     * Resolves the single {@link ArtifactoryConfiguration} to use for the whole build's shared
-     * {@link ArtifactoryService}.
+     * Resolves every {@link Registry} to use for the whole build's shared {@link ArtifactoryService},
+     * keyed by registry name.
      * <p>
-     * If the root project's own {@link KonfigyrExtension} has credentials configured, it is always
-     * used — this is the only way to make the outcome deterministic when config is instead spread
-     * across several projects (e.g. via {@code subprojects { konfigyr { ... } } }), since that pattern
-     * never actually configures the root project's own extension. Otherwise, every project in the
-     * build is inspected, and its configured connection settings are compared for equality:
+     * For each registry name declared anywhere in the build: if the root project's own extension
+     * declares a fully configured registry under that name, it is always used — this is the only way
+     * to make the outcome deterministic when config is instead spread across several projects (e.g.
+     * via {@code subprojects { konfigyr { ... } } }), since that pattern never actually configures the
+     * root project's own extension. Otherwise, every project in the build is inspected, and the
+     * registries they configure under that name are compared for equality:
      * <ul>
-     *     <li>if none are configured, the build fails since credentials are required;</li>
-     *     <li>if exactly one distinct configuration is found, it is used — this is the common case
-     *     where every project configures identical connection settings;</li>
-     *     <li>if more than one distinct configuration is found, the build fails rather than silently
-     *     picking one, since the underlying {@code BuildService} is a build-wide singleton that can
-     *     only ever use a single set of credentials.</li>
+     *     <li>if exactly one distinct registry is found for a name, it is used — this is the common
+     *     case where every project configures identical connection settings;</li>
+     *     <li>if more than one distinct registry is found for the same name, the build fails rather
+     *     than silently picking one, since a registry's connection is shared build-wide and can only
+     *     ever use a single set of credentials.</li>
      * </ul>
+     * If no registry is configured anywhere in the build, the build fails since at least one is
+     * required.
      *
      * @param project the project used to resolve every project in the build, cannot be {@literal null}.
-     * @return the single {@link ArtifactoryConfiguration} to use, never {@literal null}.
+     * @return every registry to use, keyed by name, never {@literal null} or empty.
      */
     @NullMarked
-    private static ArtifactoryConfiguration resolveArtifactoryConfiguration(Project project) {
-        final KonfigyrExtension rootExtension = resolveRootExtension(project);
-
-        if (rootExtension.isConfigured()) {
-            return rootExtension.toConfiguration();
-        }
-
-        final Set<ArtifactoryConfiguration> configurations = new LinkedHashSet<>();
+    private static Map<String, Registry> resolveRegistries(Project project) {
+        final Map<String, Registry> rootRegistries = collectConfiguredRegistries(resolveRootExtension(project));
+        final Map<String, Set<Registry>> candidatesByName = new LinkedHashMap<>();
 
         for (Project candidate : project.getRootProject().getAllprojects()) {
             final KonfigyrExtension extension = candidate.getExtensions().findByType(KonfigyrExtension.class);
 
-            if (extension != null && extension.isConfigured()) {
-                configurations.add(extension.toConfiguration());
+            if (extension == null) {
+                continue;
+            }
+
+            for (RegistrySpec spec : extension.getRegistries()) {
+                if (spec.isConfigured()) {
+                    candidatesByName.computeIfAbsent(spec.getName(), ignored -> new LinkedHashSet<>()).add(spec.toRegistry());
+                }
             }
         }
 
-        if (configurations.isEmpty()) {
+        final Map<String, Registry> resolved = new LinkedHashMap<>();
+
+        for (Map.Entry<String, Set<Registry>> entry : candidatesByName.entrySet()) {
+            final String name = entry.getKey();
+            final Registry rootRegistry = rootRegistries.get(name);
+
+            if (rootRegistry != null) {
+                resolved.put(name, rootRegistry);
+                continue;
+            }
+
+            final Set<Registry> candidates = entry.getValue();
+
+            if (candidates.size() > 1) {
+                throw new GradleException(
+                        "Multiple projects configure different connection settings for registry '" + name + "'; " +
+                        "a registry's connection is shared build-wide - configure it once, either on the root " +
+                        "project or via subprojects{}/allprojects{}."
+                );
+            }
+
+            resolved.put(name, candidates.iterator().next());
+        }
+
+        if (resolved.isEmpty()) {
             throw new GradleException(
-                    "Konfigyr plugin requires 'clientId' and 'clientSecret' to be set. Configure them in the " +
-                    "konfigyr { } block (on the root project, or via subprojects{}/allprojects{}), or via the " +
-                    "'KONFIGYR_CLIENT_ID'/'KONFIGYR_CLIENT_SECRET' environment variables."
+                    "Konfigyr plugin requires at least one registry to be configured. Configure one via " +
+                    "konfigyr { registries { konfigyrCentral() } } (on the root project, or via " +
+                    "subprojects{}/allprojects{}), or konfigyr { registries { registry(\"name\") { ... } } }."
             );
         }
 
-        if (configurations.size() > 1) {
-            throw new GradleException(
-                    "Multiple projects configure different Konfigyr connection settings; the connection is " +
-                    "shared build-wide - configure it once, either on the root project or via " +
-                    "subprojects{}/allprojects{}, or via the 'KONFIGYR_CLIENT_ID'/'KONFIGYR_CLIENT_SECRET' " +
-                    "environment variables."
-            );
+        return Collections.unmodifiableMap(resolved);
+    }
+
+    @NullMarked
+    private static Map<String, Registry> collectConfiguredRegistries(KonfigyrExtension extension) {
+        final Map<String, Registry> registries = new LinkedHashMap<>();
+
+        for (RegistrySpec spec : extension.getRegistries()) {
+            if (spec.isConfigured()) {
+                registries.put(spec.getName(), spec.toRegistry());
+            }
         }
 
-        return configurations.iterator().next();
+        return registries;
     }
 
     @NullMarked
@@ -196,20 +234,32 @@ public class KonfigyrPlugin implements Plugin<@NonNull Project> {
             Project project,
             KonfigyrExtension extension,
             Provider<ArtifactoryService> service,
-            Provider<GenerateArtifactMetadataTask> generateMetadataTask
+            Provider<GenerateArtifactMetadataTask> generateMetadataTask,
+            RegistrySpec registry
     ) {
-        return project.getTasks().register(PublishArtifactMetadataTask.NAME, PublishArtifactMetadataTask.class, task -> {
+        final String registryName = registry.getName();
+        final String taskName = PublishArtifactMetadataTask.NAME + "To" + capitalize(registryName);
+
+        return project.getTasks().register(taskName, PublishArtifactMetadataTask.class, task -> {
             task.getMetadata().set(generateMetadataTask.flatMap(GenerateArtifactMetadataTask::getMetadata));
             task.getReleaseTimeout().set(extension.getPublish().getPollTimeout().map(Duration::ofMillis));
             task.getReleasePollingInterval().set(extension.getPublish().getPollInterval().map(Duration::ofMillis));
+            task.getRegistryConfigured().set(project.provider(registry::isConfigured));
+            task.getRegistryName().set(registryName);
 
             task.getService().set(service);
             task.usesService(service);
 
             task.setGroup(PLUGIN_NAME);
-            task.setDescription("Publishes this project's own artifact metadata directly to the Konfigyr Artifactory");
+            task.setDescription("Publishes this project's own artifact metadata directly to registry '" + registryName + "'");
 
             task.dependsOn(generateMetadataTask);
+
+            task.onlyIf(
+                    "registry '" + registryName + "' must be fully configured (a url and either " +
+                            "clientCredentials { } or tokenExchange { }) to publish to it",
+                    ignore -> task.getRegistryConfigured().get()
+            );
         });
     }
 
@@ -222,7 +272,7 @@ public class KonfigyrPlugin implements Plugin<@NonNull Project> {
             task.getRuntimeClasspath().from(project.provider(() -> resolveProjectRuntimeClasspath(project)));
             task.getDependencyManifest().set(project.getLayout().getBuildDirectory().file("konfigyr/dependency-manifest.txt"));
             task.getDependencyDirectory().set(project.getLayout().getBuildDirectory().dir("konfigyr/dependencies"));
-            task.getNamespace().set(extension.getService().getNamespace());
+            task.getServiceConfigured().set(project.provider(() -> extension.getService().isConfigured()));
             task.getServiceName().set(extension.getService().getName());
 
             task.getService().set(service);
@@ -232,8 +282,8 @@ public class KonfigyrPlugin implements Plugin<@NonNull Project> {
             task.setDescription("Resolves this service's dependencies that expose Spring Boot configuration metadata");
 
             task.onlyIf(
-                    "a namespace and service must be configured to create a service release",
-                    ignore -> task.getNamespace().isPresent() && task.getServiceName().isPresent()
+                    "the service { } block must be configured to create a service release",
+                    ignore -> task.getServiceConfigured().get()
             );
         });
     }
@@ -244,28 +294,42 @@ public class KonfigyrPlugin implements Plugin<@NonNull Project> {
             KonfigyrExtension extension,
             Provider<ArtifactoryService> service,
             Provider<GenerateArtifactMetadataTask> generateMetadataTask,
-            Provider<ResolveServiceDependenciesTask> resolveDependenciesTask
+            Provider<ResolveServiceDependenciesTask> resolveDependenciesTask,
+            RegistrySpec registry
     ) {
-        return project.getTasks().register(CreateServiceReleaseTask.NAME, CreateServiceReleaseTask.class, task -> {
+        final String registryName = registry.getName();
+        final String taskName = CreateServiceReleaseTask.NAME + "To" + capitalize(registryName);
+
+        return project.getTasks().register(taskName, CreateServiceReleaseTask.class, task -> {
             task.getServiceArtifactMetadata().set(generateMetadataTask.flatMap(GenerateArtifactMetadataTask::getMetadata));
             task.getDependencyManifest().set(resolveDependenciesTask.flatMap(ResolveServiceDependenciesTask::getDependencyManifest));
             task.getDependencyDirectory().set(resolveDependenciesTask.flatMap(ResolveServiceDependenciesTask::getDependencyDirectory));
-            task.getNamespace().set(extension.getService().getNamespace());
+            task.getReleaseConfigured().set(project.provider(() -> extension.getService().isConfigured() && registry.isConfigured()));
             task.getServiceName().set(extension.getService().getName());
+            task.getRegistryName().set(registryName);
 
             task.getService().set(service);
             task.usesService(service);
 
             task.setGroup(PLUGIN_NAME);
-            task.setDescription("Creates a Service Release for this service, uploading required artifact metadata");
+            task.setDescription("Creates a Service Release for this service on registry '" + registryName + "', uploading required artifact metadata");
 
             task.onlyIf(
-                    "a namespace and service must be configured to create a service release",
-                    ignore -> task.getNamespace().isPresent() && task.getServiceName().isPresent()
+                    "the service { } block must be configured, and registry '" + registryName + "' must be " +
+                            "fully configured, to create a service release",
+                    ignore -> task.getReleaseConfigured().get()
             );
 
             task.dependsOn(generateMetadataTask, resolveDependenciesTask);
         });
+    }
+
+    private static String capitalize(String value) {
+        if (value.isEmpty()) {
+            return value;
+        }
+
+        return Character.toUpperCase(value.charAt(0)) + value.substring(1);
     }
 
     private static Provider<RegularFile> resolveJarArchiveFile(Project project) {
