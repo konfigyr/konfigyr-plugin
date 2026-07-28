@@ -232,6 +232,9 @@ public class KonfigyrExtension {
          */
         private final Property<String> name;
 
+        /**
+         * Whether {@link KonfigyrExtension#service(Action)} was ever called for this project.
+         */
         private boolean configured;
 
         ServiceSpec(ObjectFactory factory, String projectName) {
@@ -249,6 +252,10 @@ public class KonfigyrExtension {
             return configured;
         }
 
+        /**
+         * Marks this service identity as configured, called once {@link KonfigyrExtension#service(Action)}
+         * has executed the given action against this instance.
+         */
         void markConfigured() {
             configured = true;
         }

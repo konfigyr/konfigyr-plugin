@@ -114,8 +114,16 @@ public abstract class ArtifactMetadataTransform implements TransformAction<Artif
         }
     }
 
+    /**
+     * Transform parameters for {@link ArtifactMetadataTransform}.
+     */
     interface Parameters extends TransformParameters {
 
+        /**
+         * The shared {@link ArtifactoryService} used to generate the property descriptor metadata.
+         *
+         * @return the artifactory service to use, never {@literal null}.
+         */
         @Internal
         Property<ArtifactoryService> getService();
 

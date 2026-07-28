@@ -73,6 +73,12 @@ import java.net.URI;
 @NullMarked
 public class RegistrySpec implements Named {
 
+    /**
+     * The name under which this registry is declared in the {@code registries { } } container -
+     * either the reserved {@value KonfigyrExtension#CENTRAL_REGISTRY_NAME} name, or a custom name
+     * passed to {@link KonfigyrExtension#registry(String, Action)}. Also used to derive this
+     * registry's per-registry Gradle task names (e.g. {@code publishArtifactMetadataToStaging}).
+     */
     private final String name;
 
     /**
@@ -100,6 +106,18 @@ public class RegistrySpec implements Named {
     @Nullable
     private TokenExchangeSpec tokenExchange;
 
+    /**
+     * Creates a new {@link RegistrySpec}, instantiated by Gradle for each entry added to the
+     * {@link KonfigyrExtension#getRegistries()} container.
+     *
+     * @param name the registry name, cannot be {@literal null}.
+     * @param objects the Gradle object factory, cannot be {@literal null}.
+     * @param providers the Gradle provider factory, used to resolve environment variable conventions,
+     *                   cannot be {@literal null}.
+     * @param useEnvironmentConventions {@literal true} only for the reserved
+     *                                   {@value KonfigyrExtension#CENTRAL_REGISTRY_NAME} registry,
+     *                                   enabling its environment variable fallbacks.
+     */
     @Inject
     public RegistrySpec(String name, ObjectFactory objects, ProviderFactory providers, boolean useEnvironmentConventions) {
         this.name = name;
@@ -230,8 +248,25 @@ public class RegistrySpec implements Named {
          */
         private final Property<String> clientSecret;
 
+        /**
+         * Whether this grant falls back to Konfigyr's well-known environment variables
+         * ({@code KONFIGYR_CLIENT_ID}/{@code KONFIGYR_CLIENT_SECRET}) when a property is left unset -
+         * {@literal true} only for the reserved {@value KonfigyrExtension#CENTRAL_REGISTRY_NAME}
+         * registry, every other registry must set every property explicitly.
+         */
         private final boolean useEnvironmentConventions;
 
+        /**
+         * Creates a new {@link ClientCredentialsSpec}, instantiated by Gradle when
+         * {@link RegistrySpec#clientCredentials(Action)} is first called for a given registry.
+         *
+         * @param factory the Gradle object factory, cannot be {@literal null}.
+         * @param providers the Gradle provider factory, used to resolve environment variable
+         *                   conventions, cannot be {@literal null}.
+         * @param useEnvironmentConventions {@literal true} only for the reserved
+         *                                   {@value KonfigyrExtension#CENTRAL_REGISTRY_NAME} registry,
+         *                                   enabling its environment variable fallbacks.
+         */
         @Inject
         public ClientCredentialsSpec(ObjectFactory factory, ProviderFactory providers, boolean useEnvironmentConventions) {
             this.useEnvironmentConventions = useEnvironmentConventions;
@@ -245,10 +280,24 @@ public class RegistrySpec implements Named {
             }
         }
 
+        /**
+         * Checks whether both {@link #clientId} and {@link #clientSecret} are present, either set
+         * directly or resolved from their environment variable conventions.
+         *
+         * @return {@literal true} if this grant is fully configured.
+         */
         boolean isConfigured() {
             return clientId.isPresent() && clientSecret.isPresent();
         }
 
+        /**
+         * Creates the {@link ClientCredentials} described by this specification.
+         * <p>
+         * Callers must have already verified {@link #isConfigured()} returns {@literal true} before
+         * calling this method, since it eagerly resolves every required property and fails otherwise.
+         *
+         * @return the credentials, never {@literal null}.
+         */
         Credentials toCredentials() {
             KonfigyrExtension.assertPropertySet(clientId, "clientId", environmentVariableHint("KONFIGYR_CLIENT_ID"));
             KonfigyrExtension.assertPropertySet(clientSecret, "clientSecret", environmentVariableHint("KONFIGYR_CLIENT_SECRET"));
@@ -298,8 +347,26 @@ public class RegistrySpec implements Named {
          */
         private final Property<String> subjectTokenType;
 
+        /**
+         * Whether this grant falls back to Konfigyr's well-known environment variables
+         * ({@code KONFIGYR_CLIENT_ID}/{@code KONFIGYR_SUBJECT_TOKEN}) when a property is left unset -
+         * {@literal true} only for the reserved {@value KonfigyrExtension#CENTRAL_REGISTRY_NAME}
+         * registry, every other registry must set every property explicitly. Note that
+         * {@link #subjectTokenType} never falls back to an environment variable, even here.
+         */
         private final boolean useEnvironmentConventions;
 
+        /**
+         * Creates a new {@link TokenExchangeSpec}, instantiated by Gradle when
+         * {@link RegistrySpec#tokenExchange(Action)} is first called for a given registry.
+         *
+         * @param factory the Gradle object factory, cannot be {@literal null}.
+         * @param providers the Gradle provider factory, used to resolve environment variable
+         *                   conventions, cannot be {@literal null}.
+         * @param useEnvironmentConventions {@literal true} only for the reserved
+         *                                   {@value KonfigyrExtension#CENTRAL_REGISTRY_NAME} registry,
+         *                                   enabling its environment variable fallbacks.
+         */
         @Inject
         public TokenExchangeSpec(ObjectFactory factory, ProviderFactory providers, boolean useEnvironmentConventions) {
             this.useEnvironmentConventions = useEnvironmentConventions;
@@ -314,10 +381,24 @@ public class RegistrySpec implements Named {
             }
         }
 
+        /**
+         * Checks whether {@link #clientId}, {@link #subjectToken} and {@link #subjectTokenType} are
+         * all present, either set directly or resolved from their environment variable conventions.
+         *
+         * @return {@literal true} if this grant is fully configured.
+         */
         boolean isConfigured() {
             return clientId.isPresent() && subjectToken.isPresent() && subjectTokenType.isPresent();
         }
 
+        /**
+         * Creates the {@link TokenExchange} described by this specification.
+         * <p>
+         * Callers must have already verified {@link #isConfigured()} returns {@literal true} before
+         * calling this method, since it eagerly resolves every required property and fails otherwise.
+         *
+         * @return the credentials, never {@literal null}.
+         */
         Credentials toCredentials() {
             KonfigyrExtension.assertPropertySet(clientId, "clientId", environmentVariableHint("KONFIGYR_CLIENT_ID"));
             KonfigyrExtension.assertPropertySet(subjectToken, "subjectToken", environmentVariableHint("KONFIGYR_SUBJECT_TOKEN"));

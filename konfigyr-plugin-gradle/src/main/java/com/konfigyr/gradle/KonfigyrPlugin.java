@@ -22,14 +22,18 @@ import java.time.Duration;
 import java.util.*;
 
 /**
- * Gradle plugin for Konfigyr Artifacts.
+ * Gradle plugin for publishing Spring Boot configuration metadata to Konfigyr.
  * <p>
- * This plugin provides a {@code konfigyr} task for uploading Spring Boot configuration metadata to Konfigyr.
+ * Registers a {@code konfigyr} meta-task, and one publish/release task pair per registry declared in
+ * the {@link KonfigyrExtension#getRegistries() registries} container - there is no single "the"
+ * registry or connection, every declared registry gets its own task pair and its own {@link Registry}
+ * connection, keyed by registry name.
  * <p>
  * You can configure the plugin using the {@code konfigyr} extension.
  *
  * @author Vladimir Spasic
  * @since 1.0.0
+ * @see KonfigyrExtension
  **/
 public class KonfigyrPlugin implements Plugin<@NonNull Project> {
 

@@ -28,10 +28,13 @@ import java.util.stream.StreamSupport;
 /**
  * Gradle {@link BuildService} for interacting with the Konfigyr Artifactory REST API.
  * <p>
+ * Registered once, exactly, for the whole build via {@code registerIfAbsent} and shared
+ * across every project and task that needs it, rather than one instance per project.
  * Builds one {@link ArtifactoryClient} per configured {@link Registry}, all sharing a single
  * {@link ArtifactoryClientFactory}, and therefore a single connection pool and a single
  * token/discovery cache. Every method that talks to a registry takes its name as the first
- * argument to select which of those clients to use.
+ * argument to select which of those clients to use, this service itself is keyed by the
+ * registry name rather than bound to a single one.
  *
  * @author Vladimir Spasic
  * @since 1.0.0
@@ -63,6 +66,12 @@ public abstract class ArtifactoryService implements BuildService<ArtifactoryServ
         this.clients = Collections.unmodifiableMap(clients);
     }
 
+    /**
+     * Creates a new {@link ArtifactoryService} instance with a pre-built set of clients, bypassing the
+     * usual {@link Parameters}-driven construction. Only intended for tests.
+     *
+     * @param clients the clients to use, keyed by registry name, cannot be {@literal null}.
+     */
     @VisibleForTesting
     ArtifactoryService(Map<String, ArtifactoryClient> clients) {
         this.mapper = ArtifactoryClientFactory.createDefaultJsonMapper();
@@ -373,12 +382,25 @@ public abstract class ArtifactoryService implements BuildService<ArtifactoryServ
         return artifact.groupId() + joiner + artifact.artifactId() + joiner + artifact.version();
     }
 
+    /**
+     * Build service parameters for {@link ArtifactoryService}, resolved once, lazily, when the shared
+     * service is first realized. See {@link KonfigyrPlugin} for how these are populated.
+     */
     interface Parameters extends BuildServiceParameters {
 
+        /**
+         * Every {@link Registry} to build a client for, keyed by registry name.
+         *
+         * @return the registry configurations, never {@literal null}.
+         */
         MapProperty<String, Registry> getConfigurations();
 
     }
 
+    /**
+     * Exponential backoff calculator used by {@link #publish(String, ArtifactMetadata, Duration, Duration)}
+     * while polling for a {@link Publication} to leave the {@code PENDING} state.
+     */
     static final class BackOffExecution {
         static final long STOP = -1;
 
@@ -388,11 +410,23 @@ public abstract class ArtifactoryService implements BuildService<ArtifactoryServ
         private long elapsed = 0;
         private int attempts = 0;
 
+        /**
+         * Creates a new {@link BackOffExecution}.
+         *
+         * @param interval the initial time interval, in milliseconds, between polling attempts.
+         * @param timeout the overall time budget, in milliseconds, allowed for polling.
+         */
         BackOffExecution(long interval, long timeout) {
             this.interval = interval;
             this.timeout = timeout;
         }
 
+        /**
+         * Returns the number of milliseconds to wait before the next polling attempt, or {@link #STOP}
+         * once the timeout has been exceeded or too many attempts have been made.
+         *
+         * @return the next backoff delay in milliseconds, or {@link #STOP}.
+         */
         long nextBackOff() {
             // we reached the max attempts, or the timeout is exceeded, stop polling...
             if (elapsed >= timeout || attempts >= 60) {

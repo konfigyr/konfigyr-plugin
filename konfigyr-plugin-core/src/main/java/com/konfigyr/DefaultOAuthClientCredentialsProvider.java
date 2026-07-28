@@ -124,6 +124,15 @@ final class DefaultOAuthClientCredentialsProvider implements OAuthClientCredenti
         }
     }
 
+    /**
+     * Extracts and maps the value node found under the given key, if present and a JSON value node
+     * (not an object or array).
+     *
+     * @param node the JSON node to look up the key in, cannot be {@literal null}.
+     * @param key the field name to look up, cannot be {@literal null}.
+     * @param mapper maps the found value node to the desired type, cannot be {@literal null}.
+     * @return the mapped value, or {@link Optional#empty()} if the key is absent or not a value node.
+     */
     static <T> Optional<T> getNodeValue(JsonNode node, String key, Function<JsonNode, T> mapper) {
         return Optional.ofNullable(node.get(key))
                 .filter(JsonNode::isValueNode)

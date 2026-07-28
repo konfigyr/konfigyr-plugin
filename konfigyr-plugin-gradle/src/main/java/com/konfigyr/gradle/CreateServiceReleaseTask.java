@@ -114,10 +114,10 @@ public abstract class CreateServiceReleaseTask extends DefaultTask {
     public abstract Property<@NonNull String> getServiceName();
 
     /**
-     * Whether this task is eligible to run: the project's {@code konfigyr { service { } } }} block has
+     * Whether this task is eligible to run: the project's {@code konfigyr { service { } }} block has
      * been configured, <em>and</em> the registry named by {@link #getRegistryName()} is fully
-     * configured (a {@code url} and either {@code clientCredentials { } } }} or
-     * {@code tokenExchange { } } }} grant). See the {@code onlyIf} predicate this task is registered
+     * configured (a {@code url} and either {@code clientCredentials { }} or
+     * {@code tokenExchange { }} grant). See the {@code onlyIf} predicate this task is registered
      * with in {@link KonfigyrPlugin}.
      *
      * @return {@literal true} if this task should run.

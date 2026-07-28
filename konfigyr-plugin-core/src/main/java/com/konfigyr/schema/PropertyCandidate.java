@@ -12,6 +12,15 @@ import java.lang.reflect.Modifier;
 import java.util.Iterator;
 import java.util.stream.Stream;
 
+/**
+ * A single declared field of a POJO being turned into an {@code object} JSON Schema by
+ * {@link DefaultJsonSchemaGenerator}, paired with its JavaBeans getter (if one can be found), used
+ * to read annotations that may be declared on the getter rather than the field itself (e.g.
+ * {@link Deprecated}).
+ *
+ * @author Vladimir Spasic
+ * @since 1.0.0
+ */
 @EqualsAndHashCode
 final class PropertyCandidate implements Comparable<PropertyCandidate> {
 
@@ -21,33 +30,73 @@ final class PropertyCandidate implements Comparable<PropertyCandidate> {
     @Nullable
     private final Method getter;
 
+    /**
+     * Creates a new {@link PropertyCandidate} for the given field, locating its JavaBeans getter, if
+     * any, via {@link #findGetter(Class, Field)}.
+     *
+     * @param type the resolved type the field is declared on, cannot be {@literal null}.
+     * @param field the field this candidate wraps, cannot be {@literal null}.
+     * @throws ReflectiveOperationException if the getter lookup fails.
+     */
     PropertyCandidate(@NonNull ResolvedType type, @NonNull Field field) throws ReflectiveOperationException {
         this.field = field;
         this.getter = findGetter(type.getErasedType(), field);
     }
 
+    /**
+     * The field's name, used as the JSON Schema property name.
+     *
+     * @return the field name, never {@literal null}.
+     */
     @NonNull
     String getName() {
         return field.getName();
     }
 
+    /**
+     * The field's declared type, used to generate its JSON Schema.
+     *
+     * @return the field type, never {@literal null}.
+     */
     @NonNull
     Class<?> getType() {
         return field.getType();
     }
 
+    /**
+     * Checks whether this field is declared {@code transient}, excluding it from the generated schema.
+     *
+     * @return {@literal true} if the field is transient.
+     */
     boolean isTransient() {
         return Modifier.isTransient(field.getModifiers());
     }
 
+    /**
+     * Checks whether this field is declared {@code static}, excluding it from the generated schema.
+     *
+     * @return {@literal true} if the field is static.
+     */
     boolean isStatic() {
         return Modifier.isStatic(field.getModifiers());
     }
 
+    /**
+     * Checks whether this field should be marked as a required property, currently always the case
+     * for primitive types, which cannot themselves represent absence.
+     *
+     * @return {@literal true} if the field is required.
+     */
     boolean isRequired() {
         return getType().isPrimitive();
     }
 
+    /**
+     * Checks whether this field, or its {@link #findGetter(Class, Field) getter}, is annotated
+     * {@link Deprecated}.
+     *
+     * @return {@literal true} if the field is deprecated.
+     */
     boolean isDeprecated() {
         return annotationFor(Deprecated.class) != null;
     }
@@ -67,6 +116,16 @@ final class PropertyCandidate implements Comparable<PropertyCandidate> {
         return annotation;
     }
 
+    /**
+     * Looks up the JavaBeans-style getter for the given field, trying every plausible getter name in
+     * turn, or the field's own name directly for a {@link Class#isRecord() record} component.
+     *
+     * @param type the type the field is declared on, cannot be {@literal null}.
+     * @param field the field to find a getter for, cannot be {@literal null}.
+     * @return the found getter method, or {@literal null} if none of the candidate names match a
+     *         public method.
+     * @throws ReflectiveOperationException if the record component accessor cannot be found.
+     */
     static Method findGetter(Class<?> type, Field field) throws ReflectiveOperationException {
         // "non-prefix" naming convention of Java 14 java.lang.Record types
         if (type.isRecord()) {

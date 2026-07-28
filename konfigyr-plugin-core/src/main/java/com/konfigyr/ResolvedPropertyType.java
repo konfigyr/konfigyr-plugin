@@ -26,7 +26,14 @@ public class ResolvedPropertyType implements Serializable {
     @Serial
     private static final long serialVersionUID = -7621006446277743496L;
 
+    /**
+     * Shared {@link TypeResolver} used to resolve every {@link ResolvedPropertyType} created by this class.
+     */
     static final TypeResolver TYPE_RESOLVER = new TypeResolver();
+
+    /**
+     * The fallback type used when a property's type name cannot be resolved to an actual Java type.
+     */
     static final ResolvedPropertyType STRING_TYPE = new ResolvedPropertyType(String.class);
 
     /**

@@ -121,6 +121,13 @@ public class ArtifactMetadataParser {
                 .build();
     }
 
+    /**
+     * Converts the Spring Boot {@code deprecation} metadata, if present, into a Konfigyr
+     * {@link Deprecation}.
+     *
+     * @param metadata the Spring Boot configuration metadata property, cannot be {@literal null}.
+     * @return the resolved deprecation, or {@literal null} if the property is not deprecated.
+     */
     @Nullable
     static Deprecation resolveDeprecation(ConfigurationMetadataProperty metadata) {
         if (metadata.getDeprecation() == null) {
@@ -132,6 +139,13 @@ public class ArtifactMetadataParser {
         );
     }
 
+    /**
+     * Resolves the Spring Boot {@code defaultValue} metadata, if present, to its string
+     * representation, joining collection or array values with {@code ", "}.
+     *
+     * @param metadata the Spring Boot configuration metadata property, cannot be {@literal null}.
+     * @return the resolved default value, or {@literal null} if absent or blank.
+     */
     @Nullable
     static String resolveDefaultValue(ConfigurationMetadataProperty metadata) {
         final Object defaultValue = metadata.getDefaultValue();
