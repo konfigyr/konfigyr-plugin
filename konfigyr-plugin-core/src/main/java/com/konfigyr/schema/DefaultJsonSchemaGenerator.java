@@ -23,6 +23,9 @@ import java.util.*;
  * This is intentionally basic: it covers primitives, wrappers, strings, numbers, booleans,
  * enums, arrays, collections, maps, and simple POJOs (by inspecting their declared fields).
  * It emits Draft 2020-12 compatible keywords (type, properties, items, additionalProperties, required, enum, format).
+ *
+ * @author Vladimir Spasic
+ * @since 1.0.0
  */
 final class DefaultJsonSchemaGenerator implements JsonSchemaGenerator {
 
@@ -32,6 +35,13 @@ final class DefaultJsonSchemaGenerator implements JsonSchemaGenerator {
     private final TypeResolver typeResolver;
     private final List<SchemaDefinitionProvider<?, ?>> providers;
 
+    /**
+     * Creates a new {@link DefaultJsonSchemaGenerator}, using the given {@link TypeLoader} and
+     * {@link TypeResolver} to build its {@link SchemaDefinitionProvider}s.
+     *
+     * @param typeLoader the type loader to use, cannot be {@literal null}.
+     * @param typeResolver the type resolver to use, cannot be {@literal null}.
+     */
     DefaultJsonSchemaGenerator(TypeLoader typeLoader, TypeResolver typeResolver) {
         this.typeLoader = typeLoader;
         this.typeResolver = typeResolver;

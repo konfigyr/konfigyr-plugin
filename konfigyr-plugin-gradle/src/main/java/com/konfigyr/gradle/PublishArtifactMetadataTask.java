@@ -66,7 +66,7 @@ public abstract class PublishArtifactMetadataTask extends DefaultTask {
 
     /**
      * Whether the registry named by {@link #getRegistryName()} is fully configured (a {@code url} and
-     * either {@code clientCredentials { } } }} or {@code tokenExchange { } } }} grant). See the
+     * either {@code clientCredentials { }} or {@code tokenExchange { }} grant). See the
      * {@code onlyIf} predicate this task is registered with in {@link KonfigyrPlugin}.
      *
      * @return {@literal true} if this task should run.

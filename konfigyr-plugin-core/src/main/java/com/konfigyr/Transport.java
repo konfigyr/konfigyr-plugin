@@ -43,6 +43,12 @@ final class Transport {
     private final TransportOptions options;
     private final HttpClient client;
 
+    /**
+     * Creates a new {@link Transport}, building its own {@link HttpClient} from the given
+     * {@link TransportOptions}.
+     *
+     * @param options the transport options, cannot be {@literal null}.
+     */
     Transport(TransportOptions options) {
         this.options = Objects.requireNonNull(options, "Transport options must not be null");
         this.client = HttpClient.newBuilder()

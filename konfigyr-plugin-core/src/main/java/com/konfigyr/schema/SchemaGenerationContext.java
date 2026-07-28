@@ -29,6 +29,9 @@ import java.util.function.Predicate;
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public final class SchemaGenerationContext {
 
+    /**
+     * The Spring Boot configuration metadata property this context is generating a schema for.
+     */
     @Getter
     private final ConfigurationMetadataProperty configurationMetadataProperty;
     private final TypeResolver typeResolver;

@@ -9,8 +9,8 @@ import java.net.http.HttpResponse;
 /**
  * Exception that is thrown when a non-ok HTTP response is received.
  *
- * @author : vladimir.spasic@ebf.com
- * @since : 02.10.22, Sun
+ * @author Vladimir Spasic
+ * @since 1.0.0
  **/
 public class HttpResponseException extends RuntimeException {
 

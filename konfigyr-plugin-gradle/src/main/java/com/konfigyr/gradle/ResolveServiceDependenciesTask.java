@@ -30,7 +30,7 @@ import java.util.List;
  * {@link GenerateArtifactMetadataTask}, form the full candidate list
  * {@link CreateServiceReleaseTask} submits to open a service's release. This task is only ever
  * needed when the project has opted into the service-release scenario via
- * {@code konfigyr { service { } } }}, otherwise it does not run.
+ * {@code konfigyr { service { } }}, otherwise it does not run.
  * <p>
  * Every project in the build is identified through {@link #getProjectArtifacts()}, populated at
  * configuration time so this task never needs to access {@link org.gradle.api.Project} objects
@@ -94,7 +94,7 @@ public abstract class ResolveServiceDependenciesTask extends DefaultTask {
     public abstract MapProperty<String, Artifact> getProjectArtifacts();
 
     /**
-     * Whether the project's {@code konfigyr { service { } } }} block has been configured. Only used
+     * Whether the project's {@code konfigyr { service { } }} block has been configured. Only used
      * to gate whether this task should run at all, not otherwise consumed by the task action.
      *
      * @return {@literal true} if the service-release scenario is enabled for this project.

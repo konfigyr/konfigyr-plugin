@@ -35,7 +35,10 @@ import java.util.concurrent.ConcurrentHashMap;
  **/
 final class TypeNameResolver {
 
-    // the type used to represent an unknown type in the cache
+    /**
+     * Sentinel cached under a class name that could not be resolved, so a repeated lookup for the same
+     * unresolvable name returns {@literal null} again without retrying the resolution.
+     */
     static final ResolvedPropertyType UNKNOWN_TYPE = new ResolvedPropertyType(TypeNameResolver.class);
 
     static final Logger logger = LoggerFactory.getLogger(TypeNameResolver.class);
@@ -153,6 +156,13 @@ final class TypeNameResolver {
         throw new ClassNotFoundException("Could not resolve type for: " + type);
     }
 
+    /**
+     * Converts a {@code classmate} {@link ResolvedType} into a {@link ResolvedPropertyType}, recursively
+     * converting its generic type parameters, if any.
+     *
+     * @param type the resolved type to convert, cannot be {@literal null}.
+     * @return the converted resolved property type, never {@literal null}.
+     */
     @NonNull
     static ResolvedPropertyType createResolvedType(@NonNull ResolvedType type) {
         final List<ResolvedPropertyType> parameters = new ArrayList<>();

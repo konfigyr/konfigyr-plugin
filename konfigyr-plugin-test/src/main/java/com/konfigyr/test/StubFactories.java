@@ -25,6 +25,9 @@ import static com.github.tomakehurst.wiremock.client.WireMock.*;
 
 /**
  * Factory class for creating stub mappings for testing purposes.
+ *
+ * @author Vladimir Spasic
+ * @since 1.0.0
  */
 @NullMarked
 @CanIgnoreReturnValue

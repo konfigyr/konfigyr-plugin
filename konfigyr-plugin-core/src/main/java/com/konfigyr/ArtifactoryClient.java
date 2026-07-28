@@ -200,6 +200,8 @@ public interface ArtifactoryClient {
      *
      * @param artifact the artifact for which the publication should be checked, never {@literal null}.
      * @return {@literal true} if the artifact version is published, {@literal false} otherwise.
+     * @throws HttpResponseException if the response is not a {@code 404} or {@code 2xx} status, or
+     *                                communication with the API fails or authentication is invalid.
      */
     boolean isPublished(Artifact artifact);
 

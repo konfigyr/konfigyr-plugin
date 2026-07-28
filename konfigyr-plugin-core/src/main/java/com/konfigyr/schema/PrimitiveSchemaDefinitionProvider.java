@@ -28,6 +28,13 @@ final class PrimitiveSchemaDefinitionProvider<T extends JsonSchema, B extends Js
 
     private final Set<PrimitiveSchemaDefinition> definitions;
 
+    /**
+     * Creates a new {@link PrimitiveSchemaDefinitionProvider}, building its fixed set of known
+     * primitive/wrapper/well-known type definitions via {@link #createDefinitions(TypeLoader)}.
+     *
+     * @param loader the type loader used to resolve each known type against the target classpath,
+     *               cannot be {@literal null}.
+     */
     PrimitiveSchemaDefinitionProvider(TypeLoader loader) {
         definitions = createDefinitions(loader);
     }
@@ -75,6 +82,15 @@ final class PrimitiveSchemaDefinitionProvider<T extends JsonSchema, B extends Js
                 .findFirst();
     }
 
+    /**
+     * Builds the fixed set of {@link PrimitiveSchemaDefinition}s this provider matches against -
+     * primitives, wrappers, strings, {@code java.time} types, and other well-known JDK/Spring types
+     * with a natural JSON Schema representation.
+     *
+     * @param loader the type loader used to resolve each known type against the target classpath,
+     *               cannot be {@literal null}.
+     * @return the built definitions, never {@literal null}.
+     */
     static Set<PrimitiveSchemaDefinition> createDefinitions(TypeLoader loader) {
         final Set<PrimitiveSchemaDefinition> definitions = new LinkedHashSet<>();
 
