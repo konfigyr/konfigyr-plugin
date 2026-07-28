@@ -9,6 +9,10 @@ plugins {
     alias(libs.plugins.gradle.compatibility) apply false
 }
 
+repositories {
+    mavenCentral()
+}
+
 subprojects {
     apply(plugin = "idea")
     apply(plugin = "jacoco")
