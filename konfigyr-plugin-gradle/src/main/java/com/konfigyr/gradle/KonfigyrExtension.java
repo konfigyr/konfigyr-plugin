@@ -7,6 +7,7 @@ import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
@@ -30,7 +31,7 @@ import java.time.Duration;
  *     // Optional: only needed for the service-release scenario - calling this block at all is what
  *     // opts a project into it, regardless of what's configured inside
  *     service {
- *         name = "order-service" // defaults to project.name
+ *         name = "order-service" // must match this service's identifier in the Konfigyr app
  *     }
  *
  *     // Optional: direct-publish polling behavior
@@ -117,7 +118,7 @@ public class KonfigyrExtension {
         registries = factory.domainObjectContainer(RegistrySpec.class,
                 name -> factory.newInstance(RegistrySpec.class, name, objects, providers, CENTRAL_REGISTRY_NAME.equals(name)));
 
-        service = new ServiceSpec(factory, project.getName());
+        service = new ServiceSpec(factory);
         publish = new PublishSpec(factory);
     }
 
@@ -201,6 +202,19 @@ public class KonfigyrExtension {
         action.execute(publish);
     }
 
+    /**
+     * Returns the name of the service this project releases against. Defined by the
+     * {@link #service(Action)} block, or the {@code konfigyr { service { name = ... } }} block.
+     *
+     * @return the configured service name provider, never {@literal null}.
+     */
+    Provider<String> resolveServiceName() {
+        return providers.provider(() -> {
+            assertPropertySet(service.getName(), "service.name", null);
+            return service.getName().get();
+        });
+    }
+
     static void assertPropertySet(Property<?> property, String name, @Nullable String env) {
         if (!property.isPresent()) {
             final String suffix = env != null ? " or via the '" + env + "' environment variable" : "";
@@ -227,8 +241,8 @@ public class KonfigyrExtension {
     public static final class ServiceSpec {
 
         /**
-         * Specify the Konfigyr service name for which this plugin would upload the configuration
-         * metadata, defaults to the current project name.
+         * The Konfigyr service this project releases against. Must match the identifier this service
+         * already has in the Konfigyr app exactly; there is no default, it must always be set explicitly.
          */
         private final Property<String> name;
 
@@ -237,8 +251,8 @@ public class KonfigyrExtension {
          */
         private boolean configured;
 
-        ServiceSpec(ObjectFactory factory, String projectName) {
-            name = factory.property(String.class).convention(projectName);
+        ServiceSpec(ObjectFactory factory) {
+            name = factory.property(String.class);
         }
 
         /**

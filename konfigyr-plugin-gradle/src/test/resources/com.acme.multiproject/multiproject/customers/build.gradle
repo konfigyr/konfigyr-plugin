@@ -8,3 +8,9 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-rest:4.0.3'
     implementation 'org.springframework.boot:spring-boot-starter-mail:4.0.3'
 }
+
+konfigyr {
+    service {
+        name = 'customer-service'
+    }
+}

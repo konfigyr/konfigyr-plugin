@@ -79,4 +79,17 @@ class KonfigyrExtensionTest {
         assertThat(extension.getRegistries().getByName("staging")).isNotNull();
     }
 
+    @Test
+    @DisplayName("service { } should be validated to make sure name is specified")
+    void validatesServiceName() {
+        assertThatExceptionOfType(GradleException.class)
+                .isThrownBy(extension.resolveServiceName()::get)
+                .withMessageContaining("Konfigyr plugin requires 'service.name' to be set");
+
+        extension.service(service -> service.getName().set("my-service"));
+
+        assertThat(extension.resolveServiceName().get())
+                .isEqualTo("my-service");
+    }
+
 }

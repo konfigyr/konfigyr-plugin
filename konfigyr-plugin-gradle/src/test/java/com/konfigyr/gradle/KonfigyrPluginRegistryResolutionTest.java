@@ -149,7 +149,9 @@ class KonfigyrPluginRegistryResolutionTest extends AbstractWiremockTest {
                             }
                         }
                     }
-                    service { }
+                    service {
+                      name = project.name
+                    }
                 }
                 """.formatted(url, clientId, clientSecret);
     }

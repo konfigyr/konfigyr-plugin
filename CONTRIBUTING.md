@@ -82,7 +82,7 @@ Spring Boot project, no running Konfigyr instance is required.
 2. Make your changes, including tests.
 3. Run `./gradlew check` and ensure everything passes.
 4. Push your branch and open a pull request against `main`.
-5. Fill in the pull request template — in particular, link the relevant issue.
+5. Fill in the pull request template, in particular, link the relevant issue.
 
 Pull requests are reviewed by the maintainers. Small, focused changes are easier to review and merge.
 If you are planning a large change, open an issue first to discuss the approach.

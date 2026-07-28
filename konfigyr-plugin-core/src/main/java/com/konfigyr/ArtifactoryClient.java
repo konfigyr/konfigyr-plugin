@@ -13,18 +13,23 @@ import java.util.Collection;
  * network errors; a single instance is typically shared across an entire build invocation spanning
  * multiple projects or modules, reusing one authenticated connection rather than one per project.
  * <p>
- * This interface supports two distinct publishing workflows. Which one applies to a given artifact
- * depends on whether the publishing namespace's {@code groupId} has been verified. Neither workflow
- * takes a namespace as an argument: the namespace is always resolved server-side from the
+ * This interface supports two distinct publishing workflows, addressing two different concerns. A
+ * service release reports a service's entire dependency footprint every time that service is
+ * released, whether or not any given dependency's {@code groupId} happens to be verified. Direct
+ * publish targets a single artifact, and requires that artifact's {@code groupId} to already be
+ * verified. A project's own artifact is commonly involved in both at once: reported as one of many
+ * candidates in its service's release, and, once verified, published directly on its own. Neither
+ * workflow takes a namespace as an argument: the namespace is always resolved server-side from the
  * authenticated access token's claims, never asserted by the caller.
  *
  * <h2>Publishing first-party metadata via a Service Release</h2>
  * <p>
- * Used for artifacts not covered by a verified {@code groupId}. Metadata published this way is
- * scoped to a single namespace and service, it is not added to the shared Artifactory registry.
- * Because a single client instance may be shared across many services (e.g. the modules of a
- * multi-module build), the target {@code service} is supplied as an argument to each call below
- * rather than fixed once for the client's lifetime.
+ * Reports every artifact discovered on a service's classpath that exposes configuration metadata,
+ * whether or not its {@code groupId} is verified. Metadata published this way is scoped to a single
+ * namespace and service, it is not added to the shared Artifactory registry. Because a single client
+ * instance may be shared across many services (e.g. the modules of a multi-module build), the target
+ * {@code service} is supplied as an argument to each call below rather than fixed once for the
+ * client's lifetime.
  * <ol>
  *   <li>Call {@link #release(String, Collection)} with every artifact discovered on the
  *       classpath that exposes Spring Boot configuration metadata, each paired with a locally

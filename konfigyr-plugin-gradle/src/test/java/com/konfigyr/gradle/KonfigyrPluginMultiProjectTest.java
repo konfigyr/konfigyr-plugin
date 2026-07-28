@@ -74,7 +74,7 @@ class KonfigyrPluginMultiProjectTest extends AbstractKonfigyrPluginTest {
                 .putPOJO("errors", Collections.emptyList())
                 .toPrettyString();
 
-        // one stub answers all four projects (core/customers/inventory/orders), so the body matcher
+        // one stub answers all three projects (customers/inventory/orders), so the body matcher
         // only pins the groupId shared by all of them plus a non-blank checksum, not a specific artifactId
         wiremock.stubFor(
                 post(urlPathTemplate("/releases/{service}"))
@@ -149,6 +149,12 @@ class KonfigyrPluginMultiProjectTest extends AbstractKonfigyrPluginTest {
                 .typeName(DataSize.class);
         PropertyDescriptorAssert.assertThat(findProperty(metadata, "acme.core.ssl"))
                 .typeName(Resource.class);
+
+        // verify that releases are created for all 3 services and that the service names
+        // are taken from the configuration. The `customer` module uses a custom `customer-service` name
+        wiremock.verify(1, postRequestedFor(urlPathEqualTo("/releases/customer-service")));
+        wiremock.verify(1, postRequestedFor(urlPathEqualTo("/releases/inventory")));
+        wiremock.verify(1, postRequestedFor(urlPathEqualTo("/releases/orders")));
     }
 
 }

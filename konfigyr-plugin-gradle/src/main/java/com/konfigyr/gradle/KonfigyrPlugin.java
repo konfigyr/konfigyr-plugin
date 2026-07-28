@@ -277,7 +277,7 @@ public class KonfigyrPlugin implements Plugin<@NonNull Project> {
             task.getDependencyManifest().set(project.getLayout().getBuildDirectory().file("konfigyr/dependency-manifest.txt"));
             task.getDependencyDirectory().set(project.getLayout().getBuildDirectory().dir("konfigyr/dependencies"));
             task.getServiceConfigured().set(project.provider(() -> extension.getService().isConfigured()));
-            task.getServiceName().set(extension.getService().getName());
+            task.getServiceName().set(extension.resolveServiceName());
 
             task.getService().set(service);
             task.usesService(service);
@@ -309,7 +309,7 @@ public class KonfigyrPlugin implements Plugin<@NonNull Project> {
             task.getDependencyManifest().set(resolveDependenciesTask.flatMap(ResolveServiceDependenciesTask::getDependencyManifest));
             task.getDependencyDirectory().set(resolveDependenciesTask.flatMap(ResolveServiceDependenciesTask::getDependencyDirectory));
             task.getReleaseConfigured().set(project.provider(() -> extension.getService().isConfigured() && registry.isConfigured()));
-            task.getServiceName().set(extension.getService().getName());
+            task.getServiceName().set(extension.resolveServiceName());
             task.getRegistryName().set(registryName);
 
             task.getService().set(service);

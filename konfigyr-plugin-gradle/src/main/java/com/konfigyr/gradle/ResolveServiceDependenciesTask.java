@@ -103,13 +103,12 @@ public abstract class ResolveServiceDependenciesTask extends DefaultTask {
     public abstract Property<Boolean> getServiceConfigured();
 
     /**
-     * The name of the Konfigyr service. Defaults to the Gradle {@link org.gradle.api.Project}
-     * name if not specified.
+     * The Konfigyr service name. Must match the identifier this service already has in the Konfigyr app;
+     * there is no default, it must always be set explicitly via {@code konfigyr { service { name = ... } }}.
      *
      * @return the service name, never {@literal null}.
      */
     @Input
-    @Optional
     public abstract Property<String> getServiceName();
 
     /**
