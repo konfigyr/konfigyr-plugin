@@ -53,7 +53,7 @@ class SanityTest {
                                                         .property("key", StringSchema.builder().format("uri").build())
                                                         .property("size", StringSchema.builder().format("data-size").build())
                                                         .property("ttl", StringSchema.builder().format("duration").build())
-                                                        .property("maxPoolSize", IntegerSchema.instance())
+                                                        .property("maxPoolSize", NumberSchema.instance())
                                                         .property("missing", ObjectSchema.instance())
                                                         .build()
                                         )

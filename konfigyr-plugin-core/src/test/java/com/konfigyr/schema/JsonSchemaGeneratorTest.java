@@ -31,6 +31,8 @@ import java.net.InetAddress;
 import java.nio.charset.Charset;
 import java.time.*;
 import java.util.*;
+import java.util.concurrent.atomic.LongAccumulator;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThatObject;
@@ -126,18 +128,21 @@ class JsonSchemaGeneratorTest {
                 .isEqualTo(BooleanSchema.instance());
     }
 
-    @ValueSource(classes = { BigInteger.class, Short.class, short.class })
-    @ParameterizedTest(name = "should generate integer schema for \"{0}\"")
-    @DisplayName("should generate simple integer schema without formats")
-    void generatesIntegerSchema(Class<?> type) {
+    @ValueSource(classes = { Short.class, short.class })
+    @ParameterizedTest(name = "should generate integer schema for \"{0}\" with int16 format")
+    @DisplayName("should generate int16 format based integer schema")
+    void generatesShortIntegerSchema(Class<?> type) {
         assertThatSchema(type)
-                .isEqualTo(IntegerSchema.instance());
+                .returns(JsonSchemaType.INTEGER, JsonSchema::type)
+                .isInstanceOf(IntegerSchema.class)
+                .asInstanceOf(InstanceOfAssertFactories.type(IntegerSchema.class))
+                .returns("int16", IntegerSchema::format);
     }
 
     @ValueSource(classes = { Integer.class, int.class })
     @ParameterizedTest(name = "should generate integer schema for \"{0}\" with int32 format")
     @DisplayName("should generate int32 format based integer schema")
-    void generatesShortIntegerSchema(Class<?> type) {
+    void generatesRegularIntegerSchema(Class<?> type) {
         assertThatSchema(type)
                 .returns(JsonSchemaType.INTEGER, JsonSchema::type)
                 .isInstanceOf(IntegerSchema.class)
@@ -156,7 +161,7 @@ class JsonSchemaGeneratorTest {
                 .returns("int64", IntegerSchema::format);
     }
 
-    @ValueSource(classes = { BigDecimal.class, Number.class })
+    @ValueSource(classes = { BigDecimal.class, BigInteger.class, LongAccumulator.class, Number.class })
     @ParameterizedTest(name = "should generate number schema for \"{0}\"")
     @DisplayName("should generate simple number schema without formats")
     void generatesNumberSchema(Class<?> type) {
@@ -273,8 +278,12 @@ class JsonSchemaGeneratorTest {
         return Stream.of(
                 Arguments.of(UUID.class, "uuid"),
                 Arguments.of(Charset.class, "charset"),
+                Arguments.of(Currency.class, "currency"),
+                Arguments.of(Pattern.class, "regex"),
                 Arguments.of(ZoneId.class, "time-zone"),
                 Arguments.of(TimeZone.class, "time-zone"),
+                Arguments.of(YearMonth.class, "year-month"),
+                Arguments.of(Year.class, "year"),
                 Arguments.of(Locale.class, "language"),
                 Arguments.of(Resource.class, "resource"),
                 Arguments.of(MimeType.class, "mime-type"),
