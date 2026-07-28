@@ -30,7 +30,7 @@ jobs:
           cache-read-only: true
 
       - name: Build
-        run: ./gradlew --no-daemon --no-parallel --continue check
+        run: ./gradlew --no-daemon --continue check
 
       - name: Test Reports
         uses: mikepenz/action-junit-report@v6

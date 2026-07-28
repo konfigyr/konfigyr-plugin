@@ -24,14 +24,12 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
-        with:
-          cache-read-only: true
 
       - name: Generate and submit dependency graph
         uses: gradle/actions/dependency-submission@v6
 
       - name: Build
-        run: ./gradlew --no-daemon --no-parallel --continue build
+        run: ./gradlew --no-daemon --continue build
 
       - name: Test Reports
         uses: mikepenz/action-junit-report@v6
