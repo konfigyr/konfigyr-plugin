@@ -5,3 +5,9 @@ plugins {
 dependencies {
     implementation project(':customers')
 }
+
+konfigyr {
+    service {
+        name = 'inventory'
+    }
+}

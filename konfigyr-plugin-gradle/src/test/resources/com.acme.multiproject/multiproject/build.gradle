@@ -43,7 +43,5 @@ subprojects {
             pollTimeout = 3000
             pollInterval = 200
         }
-        service {
-        }
     }
 }
