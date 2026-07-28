@@ -28,6 +28,16 @@ public class HttpResponseException extends RuntimeException {
     private final HttpResponse<String> response;
 
     /**
+     * Creates a new instance of {@link HttpResponseException} from the resulting {@link HttpResponse}.
+     *
+     * @param message the exception message, can be {@literal null}.
+     * @param response the HTTP response that caused the exception, cannot be {@literal null}.
+     */
+    public HttpResponseException(String message, HttpResponse<String> response) {
+        this(message, response.request(), response);
+    }
+
+    /**
      * Creates a new instance of {@link HttpResponseException} from the incoming {@link HttpRequest} and
      * {@link HttpResponse}.
      *

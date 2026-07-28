@@ -39,7 +39,7 @@ class KonfigyrPluginSingleProjectTest extends AbstractKonfigyrPluginTest {
     @Order(1)
     @DisplayName("should execute the configured Konfigyr upload task")
     void assertPluginExecuted() {
-        stubFactories.tokenExchangeSuccessFor(configuration);
+        stubFactories.tokenExchangeSuccessFor(registry);
         stubPublishOwnArtifact(false);
         stubServiceRelease();
 
@@ -52,9 +52,9 @@ class KonfigyrPluginSingleProjectTest extends AbstractKonfigyrPluginTest {
                 .extracting(BuildTask::getPath)
                 .contains(
                         ":generateArtifactMetadata",
-                        ":publishArtifactMetadata",
+                        ":publishArtifactMetadataToKonfigyrCentral",
                         ":resolveServiceDependencies",
-                        ":createServiceRelease",
+                        ":createServiceReleaseToKonfigyrCentral",
                         ":konfigyr"
                 );
 
@@ -62,11 +62,11 @@ class KonfigyrPluginSingleProjectTest extends AbstractKonfigyrPluginTest {
         wiremock.verify(1, headRequestedFor(urlPathEqualTo("/artifacts/com.acme/acme/1.0.0")));
         wiremock.verify(1, postRequestedFor(urlPathEqualTo("/artifacts/com.acme/acme/1.0.0")));
         wiremock.verify(1, getRequestedFor(urlPathEqualTo("/artifacts/com.acme/acme/1.0.0")));
-        wiremock.verify(1, postRequestedFor(urlPathEqualTo("/namespaces/konfigyr/services/test-service/releases")));
+        wiremock.verify(1, postRequestedFor(urlPathEqualTo("/releases/test-service")));
         wiremock.verify(1, postRequestedFor(urlPathEqualTo(
-                "/namespaces/konfigyr/services/test-service/releases/" + RELEASE_ID + "/artifacts")));
+                "/releases/test-service/" + RELEASE_ID + "/artifacts")));
         wiremock.verify(1, postRequestedFor(urlPathEqualTo(
-                "/namespaces/konfigyr/services/test-service/releases/" + RELEASE_ID + "/complete")));
+                "/releases/test-service/" + RELEASE_ID + "/complete")));
     }
 
     @Test
@@ -87,7 +87,7 @@ class KonfigyrPluginSingleProjectTest extends AbstractKonfigyrPluginTest {
     @Order(3)
     @DisplayName("should not publish artifact metadata directly when already published in Artifactory")
     void ignoreAlreadyPublishedArtifact() {
-        stubFactories.tokenExchangeSuccessFor(configuration);
+        stubFactories.tokenExchangeSuccessFor(registry);
         stubPublishOwnArtifact(true);
         stubServiceRelease();
 
@@ -97,7 +97,7 @@ class KonfigyrPluginSingleProjectTest extends AbstractKonfigyrPluginTest {
 
         assertThat(result.tasks(TaskOutcome.SUCCESS))
                 .extracting(BuildTask::getPath)
-                .contains(":publishArtifactMetadata", ":createServiceRelease", ":konfigyr");
+                .contains(":publishArtifactMetadataToKonfigyrCentral", ":createServiceReleaseToKonfigyrCentral", ":konfigyr");
 
         wiremock.verify(WireMock.postRequestedFor(urlPathEqualTo("/oauth/token")));
         wiremock.verify(1, headRequestedFor(urlPathEqualTo("/artifacts/com.acme/acme/1.0.0")));

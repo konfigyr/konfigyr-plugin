@@ -1,15 +1,10 @@
 package com.konfigyr.gradle;
 
 import com.konfigyr.ArtifactoryClient;
-import com.konfigyr.ArtifactoryConfiguration;
 import com.konfigyr.HttpResponseException;
 import com.konfigyr.artifactory.*;
-import com.konfigyr.test.AbstractWiremockTest;
+import org.gradle.api.GradleException;
 import org.gradle.api.artifacts.PublishException;
-import org.gradle.api.model.ObjectFactory;
-import org.gradle.api.provider.Property;
-import org.gradle.testfixtures.ProjectBuilder;
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,13 +15,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class ArtifactoryServiceTest extends AbstractWiremockTest {
+class ArtifactoryServiceTest {
 
+    static final String REGISTRY = "registry";
     static final Duration TIMEOUT = Duration.ofSeconds(1);
     static final Duration INTERVAL = Duration.ofMillis(200);
 
@@ -37,7 +34,7 @@ class ArtifactoryServiceTest extends AbstractWiremockTest {
 
     @BeforeEach
     void setup() {
-        service = new Service(client);
+        service = new Service(Map.of(REGISTRY, client));
     }
 
     @Test
@@ -46,12 +43,35 @@ class ArtifactoryServiceTest extends AbstractWiremockTest {
         final var release = mock(ServiceRelease.class);
         final var candidate = mock(ServiceReleaseCandidate.class);
 
-        doReturn(release).when(client).release(eq("konfigyr"), eq("konfigyr-test-service"), any());
+        doReturn(release).when(client).release(eq("konfigyr-test-service"), any());
 
-        assertThat(service.release("konfigyr", "konfigyr-test-service", List.of(candidate)))
+        assertThat(service.release(REGISTRY, "konfigyr-test-service", List.of(candidate)))
                 .isSameAs(release);
 
-        verify(client).release("konfigyr", "konfigyr-test-service", List.of(candidate));
+        verify(client).release("konfigyr-test-service", List.of(candidate));
+    }
+
+    @Test
+    @DisplayName("should dispatch to the client registered under the given registry name")
+    void dispatchesToNamedRegistry() {
+        final var other = mock(ArtifactoryClient.class);
+        final var multiRegistryService = new Service(Map.of(REGISTRY, client, "other", other));
+        final var release = mock(ServiceRelease.class);
+
+        doReturn(release).when(other).release(eq("konfigyr-test-service"), any());
+
+        assertThat(multiRegistryService.release("other", "konfigyr-test-service", List.of()))
+                .isSameAs(release);
+
+        verifyNoInteractions(client);
+    }
+
+    @Test
+    @DisplayName("should fail when no client is registered for the given registry name")
+    void failsForUnknownRegistry() {
+        assertThatExceptionOfType(GradleException.class)
+                .isThrownBy(() -> service.release("unknown", "konfigyr-test-service", List.of()))
+                .withMessageContaining("unknown");
     }
 
     @Test
@@ -65,7 +85,7 @@ class ArtifactoryServiceTest extends AbstractWiremockTest {
         doReturn(publication).when(client).publish(artifact);
         doReturn(publication).when(client).getPublication(artifact);
 
-        assertThatNoException().isThrownBy(() -> service.publish(artifact, TIMEOUT, INTERVAL));
+        assertThatNoException().isThrownBy(() -> service.publish(REGISTRY, artifact, TIMEOUT, INTERVAL));
 
         verify(client).publish(artifact);
         verify(client, times(2)).getPublication(artifact);
@@ -82,7 +102,7 @@ class ArtifactoryServiceTest extends AbstractWiremockTest {
         doReturn(publication).when(client).publish(artifact);
         doReturn(publication).when(client).getPublication(artifact);
 
-        assertThatNoException().isThrownBy(() -> service.publish(artifact, TIMEOUT, INTERVAL));
+        assertThatNoException().isThrownBy(() -> service.publish(REGISTRY, artifact, TIMEOUT, INTERVAL));
 
         verify(client).publish(artifact);
         verify(client, times(3)).getPublication(artifact);
@@ -95,7 +115,7 @@ class ArtifactoryServiceTest extends AbstractWiremockTest {
 
         doReturn(true).when(client).isPublished(artifact);
 
-        assertThatNoException().isThrownBy(() -> service.publish(artifact, TIMEOUT, INTERVAL));
+        assertThatNoException().isThrownBy(() -> service.publish(REGISTRY, artifact, TIMEOUT, INTERVAL));
 
         verify(client).isPublished(artifact);
         verify(client, never()).publish(artifact);
@@ -110,7 +130,7 @@ class ArtifactoryServiceTest extends AbstractWiremockTest {
         Mockito.doThrow(HttpResponseException.class).when(client).publish(artifact);
 
         assertThatExceptionOfType(PublishException.class)
-                .isThrownBy(() -> service.publish(artifact, TIMEOUT, INTERVAL))
+                .isThrownBy(() -> service.publish(REGISTRY, artifact, TIMEOUT, INTERVAL))
                 .withCauseInstanceOf(HttpResponseException.class);
 
         verify(client).publish(artifact);
@@ -128,7 +148,7 @@ class ArtifactoryServiceTest extends AbstractWiremockTest {
         doReturn(publication).when(client).getPublication(artifact);
 
         assertThatExceptionOfType(PublishException.class)
-                .isThrownBy(() -> service.publish(artifact, TIMEOUT, INTERVAL))
+                .isThrownBy(() -> service.publish(REGISTRY, artifact, TIMEOUT, INTERVAL))
                 .withMessageContaining("Publication is still pending for Artifact")
                 .withNoCause();
 
@@ -172,20 +192,13 @@ class ArtifactoryServiceTest extends AbstractWiremockTest {
 
     private static final class Service extends ArtifactoryService {
 
-        private static final ObjectFactory OBJECTS = ProjectBuilder.builder().build().getObjects();
-
-        private Service(ArtifactoryClient client) {
-            super(client);
+        private Service(Map<String, ArtifactoryClient> clients) {
+            super(clients);
         }
 
         @Override
         public Parameters getParameters() {
-            return new Parameters() {
-                @Override
-                public Property<@NotNull ArtifactoryConfiguration> getConfiguration() {
-                    return OBJECTS.property(ArtifactoryConfiguration.class);
-                }
-            };
+            throw new UnsupportedOperationException();
         }
     }
 

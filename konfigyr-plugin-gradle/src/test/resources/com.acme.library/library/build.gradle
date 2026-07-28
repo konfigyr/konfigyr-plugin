@@ -19,11 +19,14 @@ dependencies {
 }
 
 konfigyr {
-    host = "${wiremock}"
-    tokenUri = "${wiremock}/oauth/token"
-    tokenExchange {
-        clientId = 'konfigyr-client-id'
-        subjectToken = 'konfigyr-subject-token'
-        subjectTokenType = 'urn:ietf:params:oauth:token-type:jwt'
+    registries {
+        konfigyrCentral {
+            url = uri("${wiremock}")
+            tokenExchange {
+                clientId = 'konfigyr-client-id'
+                subjectToken = 'konfigyr-subject-token'
+                subjectTokenType = 'urn:ietf:params:oauth:token-type:jwt'
+            }
+        }
     }
 }

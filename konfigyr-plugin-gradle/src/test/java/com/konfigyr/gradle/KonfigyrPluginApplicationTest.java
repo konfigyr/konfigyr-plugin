@@ -22,6 +22,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class KonfigyrPluginApplicationTest {
 
+    private static final String PUBLISH_TASK = PublishArtifactMetadataTask.NAME + "ToKonfigyrCentral";
+    private static final String CREATE_RELEASE_TASK = CreateServiceReleaseTask.NAME + "ToKonfigyrCentral";
+
     @Test
     @DisplayName("should apply Konfigyr plugin and create tasks")
     void assertPluginApplied() {
@@ -40,13 +43,12 @@ class KonfigyrPluginApplicationTest {
                 .extracting(Task::getName)
                 .containsAnyOf("konfigyr");
 
-        project.getExtensions().configure(KonfigyrExtension.class, ext -> {
-            ext.getService().getNamespace().set("konfigyr");
-            ext.clientCredentials(clientCredentials -> {
-                clientCredentials.getClientId().set("client_id");
-                clientCredentials.getClientSecret().set("client_secret");
-            });
-        });
+        project.getExtensions().configure(KonfigyrExtension.class, ext ->
+                ext.konfigyrCentral(registry -> registry.clientCredentials(clientCredentials -> {
+                    clientCredentials.getClientId().set("client_id");
+                    clientCredentials.getClientSecret().set("client_secret");
+                }))
+        );
 
         assertThat(project.getGradle().getSharedServices().getRegistrations().named(KonfigyrPlugin.PLUGIN_NAME))
                 .as("Should register %s shared service", KonfigyrPlugin.PLUGIN_NAME)
@@ -62,8 +64,8 @@ class KonfigyrPluginApplicationTest {
                 .extracting(TaskProvider::getName)
                 .containsExactlyInAnyOrder(JavaPlugin.COMPILE_JAVA_TASK_NAME, JavaPlugin.JAR_TASK_NAME);
 
-        assertThat(project.getTasks().getByName(PublishArtifactMetadataTask.NAME))
-                .as("Should register %s task", PublishArtifactMetadataTask.NAME)
+        assertThat(project.getTasks().getByName(PUBLISH_TASK))
+                .as("Should register %s task", PUBLISH_TASK)
                 .isNotNull()
                 .returns(KonfigyrPlugin.PLUGIN_NAME, Task::getGroup)
                 .extracting(Task::getDependsOn, InstanceOfAssertFactories.iterable(TaskProvider.class))
@@ -75,8 +77,8 @@ class KonfigyrPluginApplicationTest {
                 .isNotNull()
                 .returns(KonfigyrPlugin.PLUGIN_NAME, Task::getGroup);
 
-        assertThat(project.getTasks().getByName(CreateServiceReleaseTask.NAME))
-                .as("Should register %s task", CreateServiceReleaseTask.NAME)
+        assertThat(project.getTasks().getByName(CREATE_RELEASE_TASK))
+                .as("Should register %s task", CREATE_RELEASE_TASK)
                 .isNotNull()
                 .returns(KonfigyrPlugin.PLUGIN_NAME, Task::getGroup)
                 .extracting(Task::getDependsOn, InstanceOfAssertFactories.iterable(TaskProvider.class))
@@ -87,7 +89,7 @@ class KonfigyrPluginApplicationTest {
                 .as("Should register %s task", KonfigyrPlugin.PLUGIN_NAME)
                 .extracting(Task::getDependsOn, InstanceOfAssertFactories.iterable(TaskProvider.class))
                 .extracting(TaskProvider::getName)
-                .containsExactlyInAnyOrder(PublishArtifactMetadataTask.NAME, CreateServiceReleaseTask.NAME);
+                .containsExactlyInAnyOrder(PUBLISH_TASK, CREATE_RELEASE_TASK);
     }
 
 }

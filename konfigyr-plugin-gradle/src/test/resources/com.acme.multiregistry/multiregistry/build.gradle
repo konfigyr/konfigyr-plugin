@@ -1,0 +1,30 @@
+plugins {
+    id 'java'
+    id 'com.konfigyr.artifactory'
+}
+
+group 'com.acme'
+version '1.0.0'
+
+konfigyr {
+    registries {
+        konfigyrCentral {
+            url = uri("${wiremock}")
+            clientCredentials {
+                clientId = 'konfigyr-client-id'
+                clientSecret = 'konfigyr-client-secret'
+            }
+        }
+        registry("staging") {
+            url = uri("${stagingUrl}")
+            tokenExchange {
+                clientId = 'staging-client-id'
+                subjectToken = 'staging-subject-token'
+                subjectTokenType = 'urn:ietf:params:oauth:token-type:jwt'
+            }
+        }
+    }
+    service {
+        name = 'multi-registry-service'
+    }
+}

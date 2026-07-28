@@ -29,8 +29,8 @@ import java.util.List;
  * produced here, together with this project's own metadata from
  * {@link GenerateArtifactMetadataTask}, form the full candidate list
  * {@link CreateServiceReleaseTask} submits to open a service's release. This task is only ever
- * needed when the project is configured as a service (a {@code namespace} and {@code service} are
- * set) — otherwise it does not run.
+ * needed when the project has opted into the service-release scenario via
+ * {@code konfigyr { service { } } }}, otherwise it does not run.
  * <p>
  * Every project in the build is identified through {@link #getProjectArtifacts()}, populated at
  * configuration time so this task never needs to access {@link org.gradle.api.Project} objects
@@ -71,7 +71,7 @@ public abstract class ResolveServiceDependenciesTask extends DefaultTask {
 
     /**
      * The collection of files that represent the runtime classpath of the current project. This is
-     * declared purely as a stable, cacheable proxy for {@link #getArtifacts()} — an
+     * declared purely as a stable, cacheable proxy for {@link #getArtifacts()}, an
      * {@link ArtifactCollection} is not itself a safe cache key.
      *
      * @return the project's runtime classpath, never {@literal null}.
@@ -94,18 +94,17 @@ public abstract class ResolveServiceDependenciesTask extends DefaultTask {
     public abstract MapProperty<String, Artifact> getProjectArtifacts();
 
     /**
-     * The Konfigyr namespace owning the service. Only used to gate whether this task should run at
-     * all — not otherwise consumed by the task action.
+     * Whether the project's {@code konfigyr { service { } } }} block has been configured. Only used
+     * to gate whether this task should run at all, not otherwise consumed by the task action.
      *
-     * @return the namespace, never {@literal null}.
+     * @return {@literal true} if the service-release scenario is enabled for this project.
      */
     @Input
-    @Optional
-    public abstract Property<String> getNamespace();
+    public abstract Property<Boolean> getServiceConfigured();
 
     /**
-     * The Konfigyr service name. Only used to gate whether this task should run at all — not
-     * otherwise consumed by the task action.
+     * The name of the Konfigyr service. Defaults to the Gradle {@link org.gradle.api.Project}
+     * name if not specified.
      *
      * @return the service name, never {@literal null}.
      */

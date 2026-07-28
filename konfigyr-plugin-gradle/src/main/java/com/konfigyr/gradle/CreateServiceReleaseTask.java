@@ -24,12 +24,15 @@ import java.util.List;
  * <p>
  * The candidate list submitted to the release is this project's own artifact metadata (from
  * {@link GenerateArtifactMetadataTask}, if it produces any) together with every dependency scanned
- * by {@link ResolveServiceDependenciesTask}. This task only runs when the project is configured as
- * a service (a {@code namespace} and {@code service} are set), see the {@code onlyIf} predicate
- * this task is registered with in {@link KonfigyrPlugin}.
+ * by {@link ResolveServiceDependenciesTask}.
+ * <p>
+ * This task only runs when the project has opted into the service-release scenario via Konfigyr
+ * {@code service} DSL configuration. The namespace owning the service is resolved server-side from
+ * the registry's authenticated access token, never asserted here.
  *
  * @author Vladimir Spasic
  * @since 1.1.0
+ * @see KonfigyrExtension
  */
 @DisableCachingByDefault(because = "Performs a network call against a stateful remote service")
 public abstract class CreateServiceReleaseTask extends DefaultTask {
@@ -93,16 +96,16 @@ public abstract class CreateServiceReleaseTask extends DefaultTask {
     public abstract DirectoryProperty getDependencyDirectory();
 
     /**
-     * The Konfigyr namespace owning the service.
+     * The name of the registry this task opens the service release against.
      *
-     * @return the namespace, never {@literal null}.
+     * @return the registry name, never {@literal null}.
      */
     @Input
-    @Optional
-    public abstract Property<@NonNull String> getNamespace();
+    public abstract Property<@NonNull String> getRegistryName();
 
     /**
-     * The Konfigyr service name.
+     * The Konfigyr service name. Defaults to the Gradle {@link org.gradle.api.Project}
+     * name if not specified.
      *
      * @return the service name, never {@literal null}.
      */
@@ -110,15 +113,27 @@ public abstract class CreateServiceReleaseTask extends DefaultTask {
     @Optional
     public abstract Property<@NonNull String> getServiceName();
 
+    /**
+     * Whether this task is eligible to run: the project's {@code konfigyr { service { } } }} block has
+     * been configured, <em>and</em> the registry named by {@link #getRegistryName()} is fully
+     * configured (a {@code url} and either {@code clientCredentials { } } }} or
+     * {@code tokenExchange { } } }} grant). See the {@code onlyIf} predicate this task is registered
+     * with in {@link KonfigyrPlugin}.
+     *
+     * @return {@literal true} if this task should run.
+     */
+    @Input
+    public abstract Property<Boolean> getReleaseConfigured();
+
     @TaskAction
     void createServiceRelease() throws IOException {
-        final String namespace = getNamespace().get();
+        final String registryName = getRegistryName().get();
         final String serviceName = getServiceName().get();
         final ArtifactoryService service = getService().get();
 
         final List<ArtifactMetadata> metadata = collectArtifactMetadataForRelease(service);
 
-        final ServiceRelease release = service.release(namespace, serviceName,
+        final ServiceRelease release = service.release(registryName, serviceName,
                 metadata.stream().map(ServiceReleaseCandidate::of).toList());
 
         final WorkQueue queue = getWorkerExecutor().noIsolation();
@@ -136,7 +151,7 @@ public abstract class CreateServiceReleaseTask extends DefaultTask {
                                     entry.groupId(), entry.artifactId(), entry.version())));
 
             queue.submit(ServiceReleaseArtifactUploadAction.class, parameters -> {
-                parameters.getNamespace().set(namespace);
+                parameters.getRegistryName().set(registryName);
                 parameters.getServiceName().set(serviceName);
                 parameters.getRelease().set(release);
                 parameters.getArtifact().set(artifact);
@@ -145,7 +160,7 @@ public abstract class CreateServiceReleaseTask extends DefaultTask {
 
         queue.await();
 
-        service.complete(namespace, serviceName, release);
+        service.complete(registryName, serviceName, release);
     }
 
     private List<ArtifactMetadata> collectArtifactMetadataForRelease(ArtifactoryService service) throws IOException {

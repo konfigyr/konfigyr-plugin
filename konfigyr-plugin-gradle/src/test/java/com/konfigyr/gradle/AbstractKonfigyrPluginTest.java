@@ -1,10 +1,9 @@
 package com.konfigyr.gradle;
 
 import com.github.tomakehurst.wiremock.client.WireMock;
-import com.konfigyr.ArtifactoryClient;
-import com.konfigyr.ArtifactoryConfiguration;
 import com.konfigyr.ClientCredentials;
 import com.konfigyr.Credentials;
+import com.konfigyr.Registry;
 import com.konfigyr.artifactory.Artifact;
 import com.konfigyr.artifactory.ArtifactMetadata;
 import com.konfigyr.artifactory.ArtifactUploadStatus;
@@ -18,6 +17,7 @@ import java.io.File;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Base class for Konfigyr plugin tests that exercise a real Gradle build via
@@ -29,19 +29,18 @@ import java.util.List;
  */
 abstract class AbstractKonfigyrPluginTest extends AbstractWiremockTest {
 
-    static final String NAMESPACE = "konfigyr";
     static final String SERVICE = "test-service";
     static final Artifact ACME = Artifact.of("com.acme", "acme", "1.0.0");
     static final String RELEASE_ID = "rel1";
 
-    final ArtifactoryConfiguration configuration;
+    final Registry registry;
 
     AbstractKonfigyrPluginTest() {
         this(new ClientCredentials("konfigyr-client-id", "konfigyr-client-secret"));
     }
 
     AbstractKonfigyrPluginTest(Credentials credentials) {
-        this.configuration = configuration()
+        this.registry = registry()
                 .credentials(credentials)
                 .build();
     }
@@ -81,9 +80,9 @@ abstract class AbstractKonfigyrPluginTest extends AbstractWiremockTest {
                 .putPOJO("errors", Collections.emptyList())
                 .toPrettyString();
 
-        stubFactories.serviceReleaseResponseFor(NAMESPACE, SERVICE, ACME, WireMock.jsonResponse(release, 200));
+        stubFactories.serviceReleaseResponseFor(SERVICE, ACME, WireMock.jsonResponse(release, 200));
 
-        stubFactories.uploadArtifactResponseFor(NAMESPACE, SERVICE, RELEASE_ID, ACME, WireMock.aResponse().withStatus(201));
+        stubFactories.uploadArtifactResponseFor(SERVICE, RELEASE_ID, ACME, WireMock.aResponse().withStatus(201));
 
         final String completed = JsonNodeFactory.instance.objectNode()
                 .put("id", RELEASE_ID)
@@ -93,7 +92,7 @@ abstract class AbstractKonfigyrPluginTest extends AbstractWiremockTest {
                 .putPOJO("errors", Collections.emptyList())
                 .toPrettyString();
 
-        stubFactories.completeServiceReleaseResponseFor(NAMESPACE, SERVICE, RELEASE_ID, WireMock.jsonResponse(completed, 200));
+        stubFactories.completeServiceReleaseResponseFor(SERVICE, RELEASE_ID, WireMock.jsonResponse(completed, 200));
     }
 
     static PropertyDescriptor findProperty(ArtifactMetadata metadata, String name) {
@@ -104,7 +103,7 @@ abstract class AbstractKonfigyrPluginTest extends AbstractWiremockTest {
     }
 
     static ArtifactMetadata readArtifactMetadata(File file) {
-        final ArtifactoryService service = new ArtifactoryService((ArtifactoryClient) null) {
+        final ArtifactoryService service = new ArtifactoryService(Map.of()) {
             @Override
             public Parameters getParameters() {
                 throw new UnsupportedOperationException();
