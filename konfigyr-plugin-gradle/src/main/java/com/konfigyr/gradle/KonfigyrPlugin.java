@@ -10,6 +10,8 @@ import org.gradle.api.artifacts.ArtifactCollection;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.RegularFile;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskProvider;
@@ -38,6 +40,8 @@ import java.util.*;
 public class KonfigyrPlugin implements Plugin<@NonNull Project> {
 
     static final String PLUGIN_NAME = "konfigyr";
+
+    private static final Logger logger = Logging.getLogger(KonfigyrPlugin.class);
 
     @Override
     public void apply(@NonNull Project project) {
@@ -185,6 +189,17 @@ public class KonfigyrPlugin implements Plugin<@NonNull Project> {
                     "konfigyr { registries { konfigyrCentral() } } (on the root project, or via " +
                     "subprojects{}/allprojects{}), or konfigyr { registries { registry(\"name\") { ... } } }."
             );
+        }
+
+        for (Map.Entry<String, Registry> entry : resolved.entrySet()) {
+            final Registry registry = entry.getValue();
+
+            if (RegistrySpec.isInsecureRegistry(registry)) {
+                logger.warn("Registry '{}' is configured with insecure = true - its url '{}' uses plain HTTP, " +
+                        "sending credentials in plaintext. Only use this for a registry that's reachable " +
+                        "exclusively over an otherwise secured channel, e.g. a private network or VPN.",
+                        entry.getKey(), registry.host());
+            }
         }
 
         return Collections.unmodifiableMap(resolved);

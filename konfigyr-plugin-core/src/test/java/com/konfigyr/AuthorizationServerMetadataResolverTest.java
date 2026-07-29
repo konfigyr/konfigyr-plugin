@@ -22,12 +22,24 @@ class AuthorizationServerMetadataResolverTest extends AbstractWiremockTest {
         resolver = new AuthorizationServerMetadataResolver(JsonMapper.shared(), new Transport(TransportOptions.DEFAULT));
     }
 
+    private static Registry registryFor(URI url) {
+        return registryFor(url, false);
+    }
+
+    private static Registry registryFor(URI url, boolean insecure) {
+        return Registry.builder()
+                .host(url)
+                .credentials(new ClientCredentials("client-id", "client-secret"))
+                .insecure(insecure)
+                .build();
+    }
+
     @Test
     @DisplayName("should resolve metadata directly from the registry when Protected Resource Metadata is absent")
     void resolvesDirectlyWhenProtectedResourceMetadataIsAbsent() {
         final URI registryUrl = URI.create(wiremock.baseUrl());
 
-        final var metadata = resolver.resolve(registryUrl);
+        final var metadata = resolver.resolve(registryFor(registryUrl));
 
         assertThat(metadata.issuer()).isEqualTo(registryUrl);
         assertThat(metadata.tokenEndpoint()).isEqualTo(URI.create(wiremock.baseUrl() + "/oauth/token"));
@@ -57,7 +69,7 @@ class AuthorizationServerMetadataResolverTest extends AbstractWiremockTest {
         wiremock.stubFor(get(urlPathEqualTo("/.well-known/oauth-authorization-server/idp"))
                 .willReturn(jsonResponse(authorizationServerMetadata, 200)));
 
-        final var metadata = resolver.resolve(registryUrl);
+        final var metadata = resolver.resolve(registryFor(registryUrl));
 
         assertThat(metadata.issuer()).isEqualTo(issuer);
         assertThat(metadata.tokenEndpoint()).isEqualTo(URI.create(issuer + "/oauth/token"));
@@ -77,7 +89,7 @@ class AuthorizationServerMetadataResolverTest extends AbstractWiremockTest {
         wiremock.stubFor(get(urlPathEqualTo("/.well-known/oauth-authorization-server/tenant1"))
                 .willReturn(jsonResponse(metadata, 200)));
 
-        final var resolved = resolver.resolve(registryUrl);
+        final var resolved = resolver.resolve(registryFor(registryUrl));
 
         assertThat(resolved.issuer()).isEqualTo(registryUrl);
         assertThat(resolved.tokenEndpoint()).isEqualTo(URI.create(registryUrl + "/oauth/token"));
@@ -97,7 +109,7 @@ class AuthorizationServerMetadataResolverTest extends AbstractWiremockTest {
         wiremock.stubFor(get(urlPathEqualTo("/.well-known/oauth-authorization-server"))
                 .willReturn(jsonResponse(metadata, 200)));
 
-        final var resolved = resolver.resolve(registryUrl);
+        final var resolved = resolver.resolve(registryFor(registryUrl));
 
         assertThat(resolved.issuer()).isEqualTo(registryUrl);
         assertThat(resolved.tokenEndpoint()).isEqualTo(URI.create(registryUrl + "/oauth/token"));
@@ -117,7 +129,7 @@ class AuthorizationServerMetadataResolverTest extends AbstractWiremockTest {
                 .willReturn(jsonResponse(metadata, 200)));
 
         assertThatIllegalStateException()
-                .isThrownBy(() -> resolver.resolve(registryUrl))
+                .isThrownBy(() -> resolver.resolve(registryFor(registryUrl)))
                 .withMessageContaining("does not match the expected issuer");
     }
 
@@ -133,7 +145,7 @@ class AuthorizationServerMetadataResolverTest extends AbstractWiremockTest {
                 .willReturn(jsonResponse(metadata, 200)));
 
         assertThatIllegalStateException()
-                .isThrownBy(() -> resolver.resolve(registryUrl))
+                .isThrownBy(() -> resolver.resolve(registryFor(registryUrl)))
                 .withMessageContaining("missing required field 'token_endpoint'");
     }
 
@@ -146,7 +158,7 @@ class AuthorizationServerMetadataResolverTest extends AbstractWiremockTest {
                 .willReturn(aResponse().withStatus(500)));
 
         assertThatIllegalStateException()
-                .isThrownBy(() -> resolver.resolve(registryUrl))
+                .isThrownBy(() -> resolver.resolve(registryFor(registryUrl)))
                 .withMessageContaining("unexpected HTTP status code 500");
     }
 
@@ -154,8 +166,15 @@ class AuthorizationServerMetadataResolverTest extends AbstractWiremockTest {
     @DisplayName("should reject a non-HTTPS registry URL that is not a loopback address")
     void rejectsNonHttpsNonLoopback() {
         assertThatIllegalArgumentException()
-                .isThrownBy(() -> resolver.resolve(URI.create("http://example.com")))
+                .isThrownBy(() -> resolver.resolve(registryFor(URI.create("http://example.com"))))
                 .withMessageContaining("must use HTTPS");
+    }
+
+    @Test
+    @DisplayName("should allow a non-HTTPS, non-loopback URL when insecure is true")
+    void allowsNonHttpsNonLoopbackWhenInsecure() {
+        assertThatCode(() -> AuthorizationServerMetadataResolver.assertHttps(URI.create("http://example.com"), true))
+                .doesNotThrowAnyException();
     }
 
     @Test
@@ -165,15 +184,16 @@ class AuthorizationServerMetadataResolverTest extends AbstractWiremockTest {
                 JsonMapper.shared(), new Transport(TransportOptions.DEFAULT), Duration.ofMillis(50)
         );
         final URI registryUrl = URI.create(wiremock.baseUrl());
+        final Registry registry = registryFor(registryUrl);
 
-        shortLivedResolver.resolve(registryUrl);
-        shortLivedResolver.resolve(registryUrl);
+        shortLivedResolver.resolve(registry);
+        shortLivedResolver.resolve(registry);
 
         wiremock.verify(1, getRequestedFor(urlPathEqualTo("/.well-known/oauth-authorization-server")));
 
         Thread.sleep(100);
 
-        shortLivedResolver.resolve(registryUrl);
+        shortLivedResolver.resolve(registry);
 
         wiremock.verify(2, getRequestedFor(urlPathEqualTo("/.well-known/oauth-authorization-server")));
     }

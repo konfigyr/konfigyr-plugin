@@ -83,7 +83,7 @@ final class DefaultOAuthClientCredentialsProvider implements OAuthClientCredenti
     }
 
     private AccessToken requestToken(Registry registry) {
-        final URI tokenUri = resolver.resolve(registry.host()).tokenEndpoint();
+        final URI tokenUri = resolver.resolve(registry).tokenEndpoint();
 
         if (logger.isDebugEnabled()) {
             logger.debug("Attempting to obtain OAuth2 access token from: {}", tokenUri);

@@ -31,7 +31,8 @@ import java.util.Objects;
  * metadata.
  * <p>
  * Every URI involved in discovery must use {@code https}, unless its host is a loopback address
- * ({@code localhost}, {@code 127.0.0.1}, {@code ::1}), which is exempted for local testing.
+ * ({@code localhost}, {@code 127.0.0.1}, {@code ::1}), which is exempted for local testing, or the
+ * resolved {@link Registry#insecure()} is {@literal true}.
  * <p>
  * Results are cached per registry {@code url} for a configurable TTL, defaulting to 15 minutes, so
  * that repeated builds sharing a JVM (e.g., the Gradle daemon) don't re-discover the same registry on
@@ -80,19 +81,22 @@ final class AuthorizationServerMetadataResolver {
     }
 
     /**
-     * Resolves the {@link AuthorizationServerMetadata} for the registry reachable at the given
-     * {@code url}, using a cached result if one is present and not yet expired.
+     * Resolves the {@link AuthorizationServerMetadata} for the given {@link Registry}, using a cached
+     * result if one is present and not yet expired.
      *
-     * @param registryUrl the registry's {@code url}, cannot be {@literal null}.
+     * @param registry the registry to resolve metadata for, cannot be {@literal null}.
      * @return the resolved metadata, never {@literal null}.
      */
-    AuthorizationServerMetadata resolve(URI registryUrl) {
-        Objects.requireNonNull(registryUrl, "registry URL must not be null");
-        return cache.get(registryUrl, () -> discover(registryUrl));
+    AuthorizationServerMetadata resolve(Registry registry) {
+        Objects.requireNonNull(registry, "registry must not be null");
+        return cache.get(registry.host(), () -> discover(registry));
     }
 
-    private AuthorizationServerMetadata discover(URI registryUrl) {
-        assertHttps(registryUrl);
+    private AuthorizationServerMetadata discover(Registry registry) {
+        final URI registryUrl = registry.host();
+        final boolean insecure = registry.insecure();
+
+        assertHttps(registryUrl, insecure);
 
         if (logger.isDebugEnabled()) {
             logger.debug("Discovering OAuth2 Authorization Server Metadata for registry: {}", registryUrl);
@@ -104,7 +108,7 @@ final class AuthorizationServerMetadataResolver {
 
         if (protectedResourceMetadata != null) {
             authorizationServerIssuer = extractAuthorizationServerIssuer(protectedResourceMetadata, registryUrl);
-            assertHttps(authorizationServerIssuer);
+            assertHttps(authorizationServerIssuer, insecure);
         }
 
         final JsonNode authorizationServerMetadata =
@@ -239,17 +243,18 @@ final class AuthorizationServerMetadataResolver {
                 .build();
     }
 
-    private static void assertHttps(URI uri) {
+    static void assertHttps(URI uri, boolean insecure) {
         if ("https".equalsIgnoreCase(uri.getScheme())) {
             return;
         }
 
-        if ("http".equalsIgnoreCase(uri.getScheme()) && isLoopback(uri.getHost())) {
+        if ("http".equalsIgnoreCase(uri.getScheme()) && (isLoopback(uri.getHost()) || insecure)) {
             return;
         }
 
         throw new IllegalArgumentException(
-                "Registry URL '%s' must use HTTPS (loopback addresses are exempt for local testing)".formatted(uri));
+                "Registry URL '%s' must use HTTPS (loopback addresses are exempt for local testing, or set insecure = true to opt out)"
+                        .formatted(uri));
     }
 
     private static boolean isLoopback(@Nullable String host) {

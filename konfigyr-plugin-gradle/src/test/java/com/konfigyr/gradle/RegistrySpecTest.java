@@ -1,5 +1,6 @@
 package com.konfigyr.gradle;
 
+import com.konfigyr.ClientCredentials;
 import com.konfigyr.Registry;
 import com.konfigyr.TokenExchange;
 import org.gradle.api.GradleException;
@@ -190,6 +191,76 @@ class RegistrySpecTest {
         });
 
         assertThat(spec.toRegistry().host()).isEqualTo(URI.create("http://localhost:8080"));
+    }
+
+    @Test
+    @DisplayName("is not insecure by default")
+    void notInsecureByDefault() {
+        final RegistrySpec spec = new RegistrySpec("staging", objects, providers, false);
+
+        assertThat(spec.getInsecure().get()).isFalse();
+    }
+
+    @Test
+    @DisplayName("allows a non-https url when insecure is set to true")
+    void allowsNonHttpsUrlWhenInsecure() {
+        final RegistrySpec spec = new RegistrySpec("staging", objects, providers, false);
+        spec.getUrl().set(URI.create("http://konfigyr.internal.acme.com"));
+        spec.getInsecure().set(true);
+        spec.clientCredentials(credentials -> {
+            credentials.getClientId().set("client-id");
+            credentials.getClientSecret().set("client-secret");
+        });
+
+        assertThat(spec.toRegistry().host())
+                .isEqualTo(URI.create("http://konfigyr.internal.acme.com"));
+    }
+
+    @Test
+    @DisplayName("isInsecureRegistry is false when insecure is not set")
+    void isInsecureRegistryFalseWhenNotInsecure() {
+        final Registry registry = Registry.builder()
+                .host(URI.create("http://konfigyr.internal.acme.com"))
+                .credentials(new ClientCredentials("client-id", "client-secret"))
+                .build();
+
+        assertThat(RegistrySpec.isInsecureRegistry(registry)).isFalse();
+    }
+
+    @Test
+    @DisplayName("isInsecureRegistry is false when insecure is set but the host uses https")
+    void isInsecureRegistryFalseWhenHttps() {
+        final Registry registry = Registry.builder()
+                .host(URI.create("https://konfigyr.internal.acme.com"))
+                .credentials(new ClientCredentials("client-id", "client-secret"))
+                .insecure(true)
+                .build();
+
+        assertThat(RegistrySpec.isInsecureRegistry(registry)).isFalse();
+    }
+
+    @Test
+    @DisplayName("isInsecureRegistry is false when insecure is set but the host is a loopback address")
+    void isInsecureRegistryFalseWhenLoopback() {
+        final Registry registry = Registry.builder()
+                .host(URI.create("http://localhost:8080"))
+                .credentials(new ClientCredentials("client-id", "client-secret"))
+                .insecure(true)
+                .build();
+
+        assertThat(RegistrySpec.isInsecureRegistry(registry)).isFalse();
+    }
+
+    @Test
+    @DisplayName("isInsecureRegistry is true when insecure is set on a plaintext, non-loopback host")
+    void isInsecureRegistryTrueForRealInsecureHost() {
+        final Registry registry = Registry.builder()
+                .host(URI.create("http://konfigyr.internal.acme.com"))
+                .credentials(new ClientCredentials("client-id", "client-secret"))
+                .insecure(true)
+                .build();
+
+        assertThat(RegistrySpec.isInsecureRegistry(registry)).isTrue();
     }
 
 }
