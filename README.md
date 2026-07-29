@@ -256,13 +256,16 @@ fails rather than silently skipping, see the FAQ below.
 <details>
 <summary><strong>Tasks</strong></summary>
 
-The plugin registers one publish/release task pair **per declared registry**, plus a shared `konfigyr`
-umbrella task. For a registry named `staging`, the publish task is `publishArtifactMetadataToStaging`; for
-the reserved `konfigyrCentral` registry, it's `publishArtifactMetadataToKonfigyrCentral`, and so on.
+The plugin registers one publish/release task pair **per declared registry**, grouped under a per-registry
+`publishTo<Registry>` task, plus a shared `konfigyr` umbrella task that depends on every registry's grouping
+task. For a registry named `staging`, the publish task is `publishArtifactMetadataToStaging` and the grouping
+task is `publishToStaging`; for the reserved `konfigyrCentral` registry, it's `publishArtifactMetadataToKonfigyrCentral`
+and `publishToKonfigyrCentral`, and so on.
 
 | Task | Scenario | Runs when |
 |---|---|---|
-| `konfigyr` | Both | Always. Depends on every registry's publish/release tasks below. |
+| `konfigyr` | Both | Always. Depends on every registry's `publishTo<Registry>` task below. |
+| `publishTo<Registry>` | Both | Always. Depends on `<Registry>`'s own publish/release tasks below. |
 | `generateArtifactMetadata` | Shared | Always. Scans this project's own built jar; feeds both scenarios. Cacheable. |
 | `publishArtifactMetadataTo<Registry>` | Direct publish | Whenever `<Registry>` has a `url` and a grant configured. |
 | `resolveServiceDependencies` | Service release | Only if `service { }` is configured. Cacheable. |
@@ -275,6 +278,9 @@ the project's own jar exposes configuration metadata; otherwise it's a no-op.
 You can run any task individually, e.g. `./gradlew generateArtifactMetadata` to scan and write metadata
 locally with no network calls. Generated files live under `build/konfigyr/` and are fully cacheable.
 Re-running without classpath changes is instant.
+
+To publish and release to just one registry without touching the others, run its `publishTo<Registry>` task,
+e.g. `./gradlew publishToStaging` runs both `publishArtifactMetadataToStaging` and `createServiceReleaseToStaging`.
 
 </details>
 
