@@ -132,8 +132,15 @@ public abstract class ResolveServiceDependenciesTask extends DefaultTask {
     void resolveServiceDependencies() throws IOException {
         final List<String> locations = new ArrayList<>();
         final ArtifactoryService service = getService().get();
+        final ArtifactCollection artifacts = getArtifacts().get();
 
-        getArtifacts().get().forEach(artifact -> {
+        artifacts.getFailures().forEach(failure -> {
+            getLogger().warn("Could not resolve Konfigyr metadata for a runtime classpath dependency, it will be " +
+                    "skipped from this service's dependency manifest: {}", failure.getMessage());
+            getLogger().debug("Stack trace for failed dependency", failure);
+        });
+
+        artifacts.forEach(artifact -> {
             final Artifact candidate = createArtifact(artifact.getId());
 
             if (candidate == null) {
