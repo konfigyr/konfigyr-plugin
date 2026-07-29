@@ -385,10 +385,23 @@ public class KonfigyrPlugin implements Plugin<@NonNull Project> {
         return project.getConfigurations()
                 .getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME)
                 .getIncoming()
-                .artifactView(view -> view.attributes(attributes -> attributes.attribute(
-                        ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE,
-                        ArtifactMetadataTransform.ARTIFACT_TYPE
-                )))
+                .artifactView(view -> {
+                    // Some published components declare a transitive dependency that has no jar
+                    // variant at all (e.g., a Maven parent/aggregator POM, or non-jar packaging
+                    // such as a "documentation" or "samples" zip). ArtifactMetadataTransform's
+                    // @InputArtifactDependencies requires a jar for every such node to build its
+                    // reflection classpath, which fails the whole resolution even though the
+                    // dependent artifact's own runtime classpath entry resolves fine. Since a
+                    // dependency that can't be transformed simply contributes no metadata, the
+                    // same way one without any Spring Boot configuration metadata does, this view
+                    // is lenient: failures are skipped here and surfaced as a warning in
+                    // ResolveServiceDependenciesTask instead of failing the build.
+                    view.lenient(true);
+                    view.attributes(attributes -> attributes.attribute(
+                            ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE,
+                            ArtifactMetadataTransform.ARTIFACT_TYPE
+                    ));
+                })
                 .getArtifacts();
     }
 
