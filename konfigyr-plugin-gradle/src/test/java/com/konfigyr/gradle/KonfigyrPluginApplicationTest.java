@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class KonfigyrPluginApplicationTest {
 
+    private static final String PUBLISH_TO_REGISTRY_TASK = "publishToKonfigyrCentral";
     private static final String PUBLISH_TASK = PublishArtifactMetadataTask.NAME + "ToKonfigyrCentral";
     private static final String CREATE_RELEASE_TASK = CreateServiceReleaseTask.NAME + "ToKonfigyrCentral";
 
@@ -87,6 +88,14 @@ class KonfigyrPluginApplicationTest {
 
         assertThat(project.getTasks().getByName(KonfigyrPlugin.PLUGIN_NAME))
                 .as("Should register %s task", KonfigyrPlugin.PLUGIN_NAME)
+                .extracting(Task::getDependsOn, InstanceOfAssertFactories.iterable(TaskProvider.class))
+                .extracting(TaskProvider::getName)
+                .containsExactlyInAnyOrder(PUBLISH_TO_REGISTRY_TASK);
+
+        assertThat(project.getTasks().getByName(PUBLISH_TO_REGISTRY_TASK))
+                .as("Should register %s task", PUBLISH_TO_REGISTRY_TASK)
+                .isNotNull()
+                .returns(KonfigyrPlugin.PLUGIN_NAME, Task::getGroup)
                 .extracting(Task::getDependsOn, InstanceOfAssertFactories.iterable(TaskProvider.class))
                 .extracting(TaskProvider::getName)
                 .containsExactlyInAnyOrder(PUBLISH_TASK, CREATE_RELEASE_TASK);

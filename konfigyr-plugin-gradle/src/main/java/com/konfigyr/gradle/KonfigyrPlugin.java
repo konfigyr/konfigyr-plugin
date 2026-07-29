@@ -26,10 +26,11 @@ import java.util.*;
 /**
  * Gradle plugin for publishing Spring Boot configuration metadata to Konfigyr.
  * <p>
- * Registers a {@code konfigyr} meta-task, and one publish/release task pair per registry declared in
- * the {@link KonfigyrExtension#getRegistries() registries} container - there is no single "the"
- * registry or connection, every declared registry gets its own task pair and its own {@link Registry}
- * connection, keyed by registry name.
+ * Registers a {@code konfigyr} meta-task, and, per registry declared in the
+ * {@link KonfigyrExtension#getRegistries() registries} container, a {@code publishTo<Registry>}
+ * grouping task depending on that registry's own publish/release task pair. There is no single "the"
+ * registry or connection, every declared registry gets its own grouping task, task pair, and its own
+ * {@link Registry} connection, keyed by registry name.
  * <p>
  * You can configure the plugin using the {@code konfigyr} extension.
  *
@@ -63,19 +64,26 @@ public class KonfigyrPlugin implements Plugin<@NonNull Project> {
         // register konfigyr meta-task that would be used as the main entrypoint...
         final TaskProvider<DefaultTask> meta = project.getTasks().register(PLUGIN_NAME, DefaultTask.class, task -> {
             task.setGroup(PLUGIN_NAME);
-            task.setDescription("Task that would generate and publish the Konfigyr artifact metadata for your project");
+            task.setDescription("Generates and publishes the Konfigyr artifact metadata to every configured registry, creating a " +
+                    "service release wherever a service is also configured. Requires at least one registry to be " +
+                    "declared, or the build fails.");
         });
 
         // ...and one publish/release task pair per registry this project declares, registered lazily as
-        // each registry is added to the container, so declaration order relative to plugin application
+        // each registry is added to the container, so declaration order relative to the plugin application
         // doesn't matter.
         extension.getRegistries().all(registry -> {
+            // registers a registry-specific publishing meta-task that would be used to
+            // group both publish and release tasks for the same registry
+            final TaskProvider<DefaultTask> publishToRegistry = registerPublishToRegistryTask(project, registry);
+
             final Provider<PublishArtifactMetadataTask> publishMetadataTask =
                     registerPublishMetadataTask(project, extension, service, generateMetadataTask, registry);
             final Provider<CreateServiceReleaseTask> createReleaseTask =
                     registerCreateServiceReleaseTask(project, extension, service, generateMetadataTask, resolveDependenciesTask, registry);
 
-            meta.configure(task -> task.dependsOn(publishMetadataTask, createReleaseTask));
+            publishToRegistry.configure(task -> task.dependsOn(publishMetadataTask, createReleaseTask));
+            meta.configure(task -> task.dependsOn(publishToRegistry));
         });
     }
 
@@ -249,6 +257,18 @@ public class KonfigyrPlugin implements Plugin<@NonNull Project> {
     }
 
     @NullMarked
+    private static TaskProvider<DefaultTask> registerPublishToRegistryTask(Project project, RegistrySpec registry) {
+        final String registryName = registry.getName();
+        final String taskName = "publishTo" + capitalize(registryName);
+
+        return project.getTasks().register(taskName, DefaultTask.class, task -> {
+            task.setGroup(PLUGIN_NAME);
+            task.setDescription("Generates and publishes the Konfigyr artifact metadata to registry '" +
+                    registryName + "', creating a service release too wherever a service is also configured.");
+        });
+    }
+
+    @NullMarked
     private static Provider<PublishArtifactMetadataTask> registerPublishMetadataTask(
             Project project,
             KonfigyrExtension extension,
@@ -270,7 +290,9 @@ public class KonfigyrPlugin implements Plugin<@NonNull Project> {
             task.usesService(service);
 
             task.setGroup(PLUGIN_NAME);
-            task.setDescription("Publishes this project's own artifact metadata directly to registry '" + registryName + "'");
+            task.setDescription("Publishes this project's own artifact metadata directly to registry '" + registryName + "', " +
+                    "independently of any service release. Skipped unless registry '" + registryName + "' declares a " +
+                    "url and authentication credentials.");
 
             task.dependsOn(generateMetadataTask);
 
@@ -298,7 +320,8 @@ public class KonfigyrPlugin implements Plugin<@NonNull Project> {
             task.usesService(service);
 
             task.setGroup(PLUGIN_NAME);
-            task.setDescription("Resolves this service's dependencies that expose Spring Boot configuration metadata");
+            task.setDescription("Resolves this service's dependencies that expose Spring Boot configuration metadata. Skipped " +
+                    "unless a service is configured.");
 
             task.onlyIf(
                     "the service { } block must be configured to create a service release",
@@ -331,7 +354,9 @@ public class KonfigyrPlugin implements Plugin<@NonNull Project> {
             task.usesService(service);
 
             task.setGroup(PLUGIN_NAME);
-            task.setDescription("Creates a Service Release for this service on registry '" + registryName + "', uploading required artifact metadata");
+            task.setDescription("Creates a Service Release for this service on registry '" + registryName + "', uploading required " +
+                    "artifact metadata. Skipped unless a service is configured and registry '" + registryName + "' " +
+                    "declares a url and authentication credentials.");
 
             task.onlyIf(
                     "the service { } block must be configured, and registry '" + registryName + "' must be " +
