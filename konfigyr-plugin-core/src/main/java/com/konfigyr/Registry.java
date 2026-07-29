@@ -20,12 +20,18 @@ import java.util.Objects;
  * @param host        The base URL of the Konfigyr Artifactory API, also used as the discovery seed
  *                    for this registry's OAuth2 endpoints, never {@literal null}.
  * @param credentials Credentials used to authenticate with the Konfigyr Identity Provider, never {@literal null}.
+ * @param insecure    Whether {@code host} is allowed to use the plain {@code http} scheme, beyond the
+ *                    loopback exemption that's always granted for local testing. <strong>Use with
+ *                    caution</strong>: only set this for a registry that's known to be reachable
+ *                    exclusively over an otherwise secured channel, for example a service exposed
+ *                    exclusively on a private network or VPN, since credentials are otherwise sent in
+ *                    plaintext and can be intercepted by anyone on the network path.
  * @author Vladimir Spasic
  * @since 1.0.0
  * @see Credentials
  * @see TransportOptions
  */
-public record Registry(@NonNull URI host, @NonNull Credentials credentials) implements Serializable {
+public record Registry(@NonNull URI host, @NonNull Credentials credentials, boolean insecure) implements Serializable {
 
     @Serial
     private static final long serialVersionUID = 579252712638626059L;
@@ -52,6 +58,7 @@ public record Registry(@NonNull URI host, @NonNull Credentials credentials) impl
     public static final class Builder {
         private URI host = DEFAULT_HOST;
         private Credentials credentials;
+        private boolean insecure = false;
 
         private Builder() {
             // Private constructor to enforce the builder pattern
@@ -91,12 +98,29 @@ public record Registry(@NonNull URI host, @NonNull Credentials credentials) impl
         }
 
         /**
+         * Sets whether {@code host} is allowed to use the plain {@code http} scheme, beyond the
+         * loopback exemption that's always granted for local testing. Defaults to {@literal false}.
+         * <p>
+         * <strong>Use with caution</strong>: only enable this for a registry that's known to be
+         * reachable exclusively over an otherwise secured channel, for example a service exposed
+         * exclusively on a private network or VPN. Credentials are otherwise sent in plaintext and
+         * can be intercepted by anyone on the network path.
+         *
+         * @param insecure {@literal true} to allow a plain {@code http} host.
+         * @return this builder instance for method chaining.
+         */
+        public Builder insecure(boolean insecure) {
+            this.insecure = insecure;
+            return this;
+        }
+
+        /**
          * Constructs a new {@link Registry} instance with the configured values.
          *
          * @return a new registry instance, never {@literal null}.
          */
         public Registry build() {
-            return new Registry(host, credentials);
+            return new Registry(host, credentials, insecure);
         }
     }
 }

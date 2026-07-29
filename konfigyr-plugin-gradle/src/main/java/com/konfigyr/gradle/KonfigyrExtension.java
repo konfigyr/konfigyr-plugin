@@ -62,6 +62,9 @@ import java.time.Duration;
  * Every declared registry receives its own publish/release request when the relevant task runs,
  * there is no "active" or "selected" registry, mirroring how Gradle's own {@code maven-publish}
  * plugin generates one publish task per declared repository.
+ * <p>
+ * A registry's {@code url} must use {@code https}, unless the host is a loopback address, or
+ * {@link RegistrySpec#getInsecure() insecure} is set to {@literal true}.
  *
  * @author Vladimir Spasic
  * @since 1.0.0

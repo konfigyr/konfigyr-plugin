@@ -179,6 +179,28 @@ konfigyr {
 You can declare as many registries as you need. Every one gets published to independently. If both
 `clientCredentials { }` and `tokenExchange { }` are configured on the same registry, `tokenExchange` wins.
 
+A registry's `url` must use `https`, unless the host is a loopback address (`localhost`, `127.0.0.1`, `::1`),
+which is exempt for local testing. If you're publishing to a service that's only ever reachable over an
+otherwise secured channel, e.g. one exposed exclusively on a private network or VPN, set `insecure = true`
+to allow a plain `http` URL. Only do this when you're sure the channel itself is trusted, since credentials
+are sent in plaintext:
+
+```kotlin
+konfigyr {
+    registries {
+        registry("internal") {
+            url      = uri("http://konfigyr.internal.acme.com")
+            insecure = true
+
+            clientCredentials {
+                clientId = "acme-corp-client-id"
+                clientSecret = "acme-corp-client-secret"
+            }
+        }
+    }
+}
+```
+
 </details>
 
 <details>

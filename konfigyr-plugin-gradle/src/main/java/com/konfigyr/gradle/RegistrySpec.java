@@ -62,6 +62,24 @@ import java.net.URI;
  * only exception, resolving unset values from the same {@code KONFIGYR_CLIENT_ID} /
  * {@code KONFIGYR_CLIENT_SECRET} / {@code KONFIGYR_SUBJECT_TOKEN} environment variables the plugin
  * has always supported.
+ * <p>
+ * The {@link #getUrl() url} must use {@code https}, unless the host is a loopback address. A
+ * registry that's only ever reachable over an otherwise secured channel, for example a service
+ * exposed exclusively on a private network or VPN, can opt out of this check with
+ * {@link #getInsecure() insecure}:
+ *
+ * <pre>{@code
+ * registries {
+ *     registry("internal") {
+ *         url      = uri("http://konfigyr.internal.acme.com")
+ *         insecure = true
+ *
+ *         clientCredentials {
+ *             clientId     = "acme-corp-client"
+ *             clientSecret = "acme-corp-secret"
+ *         }
+ *     }
+ * }}</pre>
  *
  * @author Vladimir Spasic
  * @since 1.2.0
@@ -85,9 +103,19 @@ public class RegistrySpec implements Named {
      * The registry's {@code url}. This is the sole discovery seed for this registry: its OAuth2
      * endpoints are resolved from it at build time, and the Artifactory API is reached via fixed
      * relative paths under this same origin. Must use {@code https}, unless the host is a loopback
-     * address, which is only intended for local testing.
+     * address, or {@link #insecure} is set to {@literal true}.
      */
     private final Property<URI> url;
+
+    /**
+     * Whether this registry's {@link #url} is allowed to use the plain {@code http} scheme, beyond
+     * the loopback exemption that's always granted for local testing. Defaults to {@literal false}.
+     * <p>
+     * <strong>Use with caution</strong>: enabling this sends credentials in plaintext, so only set it
+     * for a registry that's known to be reachable exclusively over an otherwise secured channel, for
+     * example a service that's only accessible over a private network or VPN.
+     */
+    private final Property<Boolean> insecure;
 
     @Getter(lombok.AccessLevel.NONE)
     private final ObjectFactory objects;
@@ -126,6 +154,7 @@ public class RegistrySpec implements Named {
         this.useEnvironmentConventions = useEnvironmentConventions;
 
         this.url = objects.property(URI.class);
+        this.insecure = objects.property(Boolean.class).convention(false);
 
         if (useEnvironmentConventions) {
             this.url.convention(Registry.DEFAULT_HOST);
@@ -179,14 +208,10 @@ public class RegistrySpec implements Named {
      * @return the registry, never {@literal null}.
      */
     Registry toRegistry() {
-        KonfigyrExtension.assertPropertySet(url, "url", null);
-
-        final URI registryUrl = url.get();
-        assertHttps(registryUrl);
-
         return Registry.builder()
-                .host(registryUrl)
+                .host(resolveHost())
                 .credentials(resolveCredentials())
+                .insecure(insecure.getOrElse(false))
                 .build();
     }
 
@@ -203,21 +228,49 @@ public class RegistrySpec implements Named {
                 "registries { " + name + " { tokenExchange { } } }.");
     }
 
-    private void assertHttps(URI registryUrl) {
+    private URI resolveHost() {
+        KonfigyrExtension.assertPropertySet(url, "url", null);
+
+        final URI registryUrl = getUrl().get();
+        final boolean insecure = getInsecure().getOrElse(false);
+
         if ("https".equalsIgnoreCase(registryUrl.getScheme())) {
-            return;
+            return registryUrl;
         }
 
-        if ("http".equalsIgnoreCase(registryUrl.getScheme()) && isLoopback(registryUrl.getHost())) {
-            return;
+        if ("http".equalsIgnoreCase(registryUrl.getScheme()) && (isLoopback(registryUrl.getHost()) || insecure)) {
+            return registryUrl;
         }
 
         throw new GradleException("Registry '" + name + "' url '" + registryUrl + "' must use HTTPS " +
-                "(loopback addresses are exempt for local testing).");
+                "(loopback addresses are exempt for local testing, or set insecure = true to opt out).");
     }
 
     private static boolean isLoopback(@Nullable String host) {
         return "localhost".equalsIgnoreCase(host) || "127.0.0.1".equals(host) || "::1".equals(host);
+    }
+
+    /**
+     * Checks whether the given {@link Registry} is actually relying on {@code insecure = true} to
+     * allow a plaintext connection to a real, non-loopback host, as opposed to having the flag set
+     * redundantly on a {@code https} or loopback {@code host}, neither of which carries any real
+     * plaintext risk. Used to decide whether a build-time warning is worth logging for it.
+     *
+     * @param registry the registry to check, cannot be {@literal null}.
+     * @return {@literal true} if the registry's {@code host} is plaintext {@code http} to a
+     *         non-loopback address because {@code insecure} was set to {@literal true}.
+     */
+    static boolean isInsecureRegistry(Registry registry) {
+        if (!registry.insecure()) {
+            return false;
+        }
+        final URI host = registry.host();
+
+        if ("https".equalsIgnoreCase(host.getScheme())) {
+            return false;
+        }
+
+        return !isLoopback(registry.host().getHost());
     }
 
     /**
