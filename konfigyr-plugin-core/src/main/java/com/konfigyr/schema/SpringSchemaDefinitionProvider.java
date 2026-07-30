@@ -3,6 +3,7 @@ package com.konfigyr.schema;
 import com.fasterxml.classmate.ResolvedType;
 import com.konfigyr.TypeLoader;
 import com.konfigyr.artifactory.JsonSchema;
+import com.konfigyr.artifactory.KonfigyrFormat;
 import com.konfigyr.artifactory.StringSchema;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
@@ -25,9 +26,9 @@ class SpringSchemaDefinitionProvider<T extends JsonSchema, B extends JsonSchema.
 
     SpringSchemaDefinitionProvider(TypeLoader typeLoader) {
         schemas = new LinkedHashMap<>();
-        register(schemas, typeLoader, "org.springframework.core.io.Resource", () -> StringSchema.builder().format("resource"));
-        register(schemas, typeLoader, "org.springframework.util.MimeType", () -> StringSchema.builder().format("mime-type"));
-        register(schemas, typeLoader, "org.springframework.util.unit.DataSize", () -> StringSchema.builder().format("data-size"));
+        register(schemas, typeLoader, "org.springframework.core.io.Resource", () -> StringSchema.builder().format(KonfigyrFormat.RESOURCE));
+        register(schemas, typeLoader, "org.springframework.util.MimeType", () -> StringSchema.builder().format(KonfigyrFormat.MIME_TYPE));
+        register(schemas, typeLoader, "org.springframework.util.unit.DataSize", () -> StringSchema.builder().format(KonfigyrFormat.DATA_SIZE));
     }
 
     @Override

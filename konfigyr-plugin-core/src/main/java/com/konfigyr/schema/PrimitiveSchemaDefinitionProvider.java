@@ -103,55 +103,55 @@ final class PrimitiveSchemaDefinitionProvider<T extends JsonSchema, B extends Js
         ));
 
         Stream.of(URI.class, URL.class, File.class, Path.class).forEach(javaType -> definitions.add(
-                PrimitiveSchemaDefinition.string(loader, javaType, "uri")
+                PrimitiveSchemaDefinition.string(loader, javaType, KonfigyrFormat.URI)
         ));
 
         /* Java time */
-        definitions.add(PrimitiveSchemaDefinition.string(loader, LocalDate.class, "date"));
+        definitions.add(PrimitiveSchemaDefinition.string(loader, LocalDate.class, KonfigyrFormat.DATE));
         Stream.of(LocalDateTime.class, ZonedDateTime.class, OffsetDateTime.class, Instant.class, Date.class, Calendar.class)
                 .forEach(javaType -> definitions.add(
-                        PrimitiveSchemaDefinition.string(loader, javaType, "date-time")
+                        PrimitiveSchemaDefinition.string(loader, javaType, KonfigyrFormat.DATE_TIME)
                 ));
         Stream.of(LocalTime.class, OffsetTime.class)
                 .forEach(javaType -> definitions.add(
-                        PrimitiveSchemaDefinition.string(loader, javaType, "time")
+                        PrimitiveSchemaDefinition.string(loader, javaType, KonfigyrFormat.TIME)
                 ));
         Stream.of(Duration.class, Period.class)
                 .forEach(javaType -> definitions.add(
-                        PrimitiveSchemaDefinition.string(loader, javaType, "duration")
+                        PrimitiveSchemaDefinition.string(loader, javaType, KonfigyrFormat.DURATION)
                 ));
 
         /* Custom string type formats */
-        definitions.add(PrimitiveSchemaDefinition.string(loader, UUID.class, "uuid"));
-        definitions.add(PrimitiveSchemaDefinition.string(loader, Charset.class, "charset"));
-        definitions.add(PrimitiveSchemaDefinition.string(loader, Pattern.class, "regex"));
-        definitions.add(PrimitiveSchemaDefinition.string(loader, ZoneId.class, "time-zone"));
-        definitions.add(PrimitiveSchemaDefinition.string(loader, TimeZone.class, "time-zone"));
-        definitions.add(PrimitiveSchemaDefinition.string(loader, YearMonth.class, "year-month"));
-        definitions.add(PrimitiveSchemaDefinition.string(loader, Year.class, "year"));
-        definitions.add(PrimitiveSchemaDefinition.string(loader, Locale.class, "language"));
-        definitions.add(PrimitiveSchemaDefinition.string(loader, Currency.class, "currency"));
-        definitions.add(PrimitiveSchemaDefinition.string(loader, Inet4Address.class, "ipv4"));
-        definitions.add(PrimitiveSchemaDefinition.string(loader, Inet6Address.class, "ipv6"));
+        definitions.add(PrimitiveSchemaDefinition.string(loader, UUID.class, KonfigyrFormat.UUID));
+        definitions.add(PrimitiveSchemaDefinition.string(loader, Charset.class, KonfigyrFormat.CHARSET));
+        definitions.add(PrimitiveSchemaDefinition.string(loader, Pattern.class, KonfigyrFormat.REGEX));
+        definitions.add(PrimitiveSchemaDefinition.string(loader, ZoneId.class, KonfigyrFormat.TIME_ZONE));
+        definitions.add(PrimitiveSchemaDefinition.string(loader, TimeZone.class, KonfigyrFormat.TIME_ZONE));
+        definitions.add(PrimitiveSchemaDefinition.string(loader, YearMonth.class, KonfigyrFormat.YEAR_MONTH));
+        definitions.add(PrimitiveSchemaDefinition.string(loader, Year.class, KonfigyrFormat.YEAR));
+        definitions.add(PrimitiveSchemaDefinition.string(loader, Locale.class, KonfigyrFormat.LANGUAGE));
+        definitions.add(PrimitiveSchemaDefinition.string(loader, Currency.class, KonfigyrFormat.CURRENCY));
+        definitions.add(PrimitiveSchemaDefinition.string(loader, Inet4Address.class, KonfigyrFormat.IPV4));
+        definitions.add(PrimitiveSchemaDefinition.string(loader, Inet6Address.class, KonfigyrFormat.IPV6));
 
         Stream.of(Boolean.class, boolean.class).forEach(javaType -> definitions.add(
                 PrimitiveSchemaDefinition.of(loader, javaType, JsonSchemaType.BOOLEAN)
         ));
 
         Stream.of(Short.class, short.class).forEach(javaType -> definitions.add(
-                PrimitiveSchemaDefinition.integer(loader, javaType, "int16")
+                PrimitiveSchemaDefinition.integer(loader, javaType, KonfigyrFormat.INT16)
         ));
         Stream.of(Integer.class, int.class).forEach(javaType -> definitions.add(
-                PrimitiveSchemaDefinition.integer(loader, javaType, "int32")
+                PrimitiveSchemaDefinition.integer(loader, javaType, KonfigyrFormat.INT32)
         ));
         Stream.of(Long.class, long.class).forEach(javaType -> definitions.add(
-                PrimitiveSchemaDefinition.integer(loader, javaType, "int64")
+                PrimitiveSchemaDefinition.integer(loader, javaType, KonfigyrFormat.INT64)
         ));
         Stream.of(Double.class, double.class).forEach(javaType -> definitions.add(
-                PrimitiveSchemaDefinition.number(loader, javaType, "double")
+                PrimitiveSchemaDefinition.number(loader, javaType, KonfigyrFormat.DOUBLE)
         ));
         Stream.of(Float.class, float.class).forEach(javaType -> definitions.add(
-                PrimitiveSchemaDefinition.number(loader, javaType, "float")
+                PrimitiveSchemaDefinition.number(loader, javaType, KonfigyrFormat.FLOAT)
         ));
         Stream.of(BigInteger.class, BigDecimal.class, Number.class).forEach(javaType -> definitions.add(
                 PrimitiveSchemaDefinition.number(loader, javaType, null)
@@ -159,21 +159,21 @@ final class PrimitiveSchemaDefinitionProvider<T extends JsonSchema, B extends Js
         return Collections.unmodifiableSet(definitions);
     }
 
-    record PrimitiveSchemaDefinition(Class<?> javaType, JsonSchemaType schemaType, @Nullable String format) {
+    record PrimitiveSchemaDefinition(Class<?> javaType, JsonSchemaType schemaType, @Nullable JsonSchemaFormat format) {
 
         static PrimitiveSchemaDefinition string(TypeLoader loader, Class<?> javaType) {
             return of(loader, javaType, JsonSchemaType.STRING);
         }
 
-        static PrimitiveSchemaDefinition string(TypeLoader loader, Class<?> javaType, @Nullable String format) {
+        static PrimitiveSchemaDefinition string(TypeLoader loader, Class<?> javaType, @Nullable JsonSchemaFormat format) {
             return of(loader, javaType, JsonSchemaType.STRING, format);
         }
 
-        static PrimitiveSchemaDefinition integer(TypeLoader loader, Class<?> javaType, @Nullable String format) {
+        static PrimitiveSchemaDefinition integer(TypeLoader loader, Class<?> javaType, @Nullable JsonSchemaFormat format) {
             return of(loader, javaType, JsonSchemaType.INTEGER, format);
         }
 
-        static PrimitiveSchemaDefinition number(TypeLoader loader, Class<?> javaType, @Nullable String format) {
+        static PrimitiveSchemaDefinition number(TypeLoader loader, Class<?> javaType, @Nullable JsonSchemaFormat format) {
             return of(loader, javaType, JsonSchemaType.NUMBER, format);
         }
 
@@ -181,7 +181,7 @@ final class PrimitiveSchemaDefinitionProvider<T extends JsonSchema, B extends Js
             return of(loader, javaType, schemaType, null);
         }
 
-        static PrimitiveSchemaDefinition of(TypeLoader loader, Class<?> javaType, JsonSchemaType schemaType, @Nullable String format) {
+        static PrimitiveSchemaDefinition of(TypeLoader loader, Class<?> javaType, JsonSchemaType schemaType, @Nullable JsonSchemaFormat format) {
             try {
                 return new PrimitiveSchemaDefinition(loader.load(javaType), schemaType, format);
             } catch (ClassNotFoundException e) {
