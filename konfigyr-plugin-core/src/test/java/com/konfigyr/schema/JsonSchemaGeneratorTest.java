@@ -227,7 +227,7 @@ class JsonSchemaGeneratorTest {
                 .returns(JsonSchemaType.OBJECT, JsonSchema::type)
                 .isInstanceOf(ObjectSchema.class)
                 .asInstanceOf(InstanceOfAssertFactories.type(ObjectSchema.class))
-                .returns(IntegerSchema.builder().format("int32").build(), ObjectSchema::additionalProperties);
+                .returns(IntegerSchema.builder().format(KonfigyrFormat.INT32).build(), ObjectSchema::additionalProperties);
     }
 
     @Test
@@ -247,7 +247,7 @@ class JsonSchemaGeneratorTest {
                 .returns(List.of("active", "age"), ObjectSchema::required)
                 .extracting(ObjectSchema::properties, InstanceOfAssertFactories.map(String.class, JsonSchema.class))
                 .containsEntry("active", BooleanSchema.builder().deprecated(true).build())
-                .containsEntry("age", IntegerSchema.builder().format("int32").build())
+                .containsEntry("age", IntegerSchema.builder().format(KonfigyrFormat.INT32).build())
                 .containsEntry("name", StringSchema.instance());
     }
 
@@ -261,7 +261,7 @@ class JsonSchemaGeneratorTest {
                 .returns(List.of("active", "age"), ObjectSchema::required)
                 .extracting(ObjectSchema::properties, InstanceOfAssertFactories.map(String.class, JsonSchema.class))
                 .containsEntry("active", BooleanSchema.builder().deprecated(true).build())
-                .containsEntry("age", IntegerSchema.builder().format("int32").build())
+                .containsEntry("age", IntegerSchema.builder().format(KonfigyrFormat.INT32).build())
                 .containsEntry("name", StringSchema.instance());
     }
 

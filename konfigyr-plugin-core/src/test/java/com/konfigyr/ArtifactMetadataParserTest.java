@@ -2,6 +2,7 @@ package com.konfigyr;
 
 import com.konfigyr.artifactory.ArraySchema;
 import com.konfigyr.artifactory.BooleanSchema;
+import com.konfigyr.artifactory.KonfigyrFormat;
 import com.konfigyr.artifactory.PropertyDescriptor;
 import com.konfigyr.artifactory.StringSchema;
 import com.konfigyr.test.PropertyDescriptorAssert;
@@ -97,7 +98,7 @@ class ArtifactMetadataParserTest {
                         it -> PropertyDescriptorAssert.assertThat(it)
                                 .name("konfigyr.ttl")
                                 .typeName(Duration.class)
-                                .schema(StringSchema.builder().format("duration").build())
+                                .schema(StringSchema.builder().format(KonfigyrFormat.DURATION).build())
                                 .isNotDeprecated(),
                         Index.atIndex(4)
                 );
