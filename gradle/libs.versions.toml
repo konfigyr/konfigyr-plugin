@@ -3,7 +3,7 @@ spring-boot = "4.0.6"
 junit = "6.1.1"
 
 [libraries]
-slf4j = { module = "org.slf4j:slf4j-api", version = "2.0.17" }
+slf4j = { module = "org.slf4j:slf4j-api", version = "2.0.18" }
 logback = { module = "ch.qos.logback:logback-classic", version = "1.5.37" }
 konfigyr-artifactory = { module = "com.konfigyr:konfigyr-artifactory", version = "1.0.0-RC6" }
 spring-core = { module = "org.springframework:spring-core", version = "7.0.8" }
