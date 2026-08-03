@@ -23,10 +23,10 @@ jobs:
           distribution: temurin
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6
+        uses: gradle/actions/setup-gradle@v6.2.0
 
       - name: Generate and submit dependency graph
-        uses: gradle/actions/dependency-submission@v6
+        uses: gradle/actions/dependency-submission@v6.2.0
 
       - name: Build
         run: ./gradlew --no-daemon --continue build
