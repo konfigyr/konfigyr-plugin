@@ -11,7 +11,7 @@ spring-configuration-metadata = { module = "org.springframework.boot:spring-boot
 spring-configuration-processor = { module = "org.springframework.boot:spring-boot-configuration-processor", version.ref = "spring-boot" }
 spring-starter = { module = "org.springframework.boot:spring-boot-starter", version.ref = "spring-boot" }
 jackson-databind = { module = "tools.jackson.core:jackson-databind", version = "3.2.3"}
-classmate = { module = "com.fasterxml:classmate", version = "1.7.3"}
+classmate = { module = "com.fasterxml:classmate", version = "1.8.0"}
 javaparser = { module = "com.github.javaparser:javaparser-symbol-solver-core", version = "3.28.2"}
 junit = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
 junit-mockito = { module = "org.mockito:mockito-junit-jupiter", version = "5.24.0" }
